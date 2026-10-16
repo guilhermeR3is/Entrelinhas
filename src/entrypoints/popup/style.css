@@ -101,44 +101,39 @@ body {
   text-wrap: pretty;
 }
 
-.entry:not([hidden]) {
-  animation: entry-in 160ms var(--ease-out);
-}
-
-@keyframes entry-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-}
-
 .retry {
   margin-top: var(--space-4);
-  padding: 6px var(--space-3);
-  border: 1px solid var(--accent);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--note);
   border-radius: 4px;
   background: transparent;
-  color: var(--accent);
+  color: var(--ink);
   font: inherit;
   font-weight: 600;
+  line-height: 1;
   cursor: pointer;
   transition:
-    background-color 120ms var(--ease-out),
-    color 120ms var(--ease-out),
-    transform 120ms var(--ease-out);
+    background-color 120ms ease,
+    transform 160ms var(--ease-out);
 }
 
-.retry:hover {
-  background: var(--accent);
-  color: var(--on-accent);
+@media (hover: hover) and (pointer: fine) {
+  .retry:hover {
+    background: var(--rule);
+  }
 }
 
 .retry:active {
   transform: scale(0.97);
 }
 
+.retry:disabled {
+  color: var(--note);
+  cursor: progress;
+}
+
 .retry:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
 
@@ -165,11 +160,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .entry:not([hidden]) {
-    animation: none;
-  }
-
-  .retry {
-    transition: none;
+  .retry:active {
+    transform: none;
   }
 }

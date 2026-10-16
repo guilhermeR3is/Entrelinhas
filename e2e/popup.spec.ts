@@ -5,8 +5,8 @@ test('reports an unsupported site with the real tabs API', async ({ context, pop
   await popup.goto(popupUrl);
 
   await expect(popup.getByRole('heading', { name: 'Este site' })).toBeVisible();
-  await expect(popup.getByRole('status')).toContainText('site não suportado');
-  await expect(popup.getByRole('status')).toContainText('Por enquanto, só no YouTube.');
+  await expect(popup.getByRole('status')).toContainText('não compatível');
+  await expect(popup.getByRole('status')).toContainText('Por enquanto, só funciona no YouTube.');
   await expect(popup.getByRole('button', { name: 'Tentar de novo' })).toBeHidden();
   await expect(popup.locator('.thumb-tab')).toBeHidden();
 });
@@ -17,7 +17,7 @@ test('reports YouTube as active and lights the thumb tab', async ({ context, pop
   await popup.goto(popupUrl);
 
   await expect(popup.getByRole('heading', { name: 'youtube.com' })).toBeVisible();
-  await expect(popup.getByRole('status')).toContainText('Ativa neste site.');
+  await expect(popup.getByRole('status')).toContainText('Ativa aqui.');
   await expect(popup.locator('.thumb-tab')).toHaveAttribute('data-state', 'lit');
   await expect(popup.locator('.thumb-tab')).toHaveText('Y');
 });
@@ -34,7 +34,7 @@ test('shows a checking notice when the tab takes long to answer', async ({ conte
 
 test('recovers from a failed check through the retry button', async ({ context, popupUrl }) => {
   const popup = await context.newPage();
-  await stubActiveTab(popup, { rejectTimes: 1, thenUrl: 'https://www.youtube.com/' });
+  await stubActiveTab(popup, { url: 'https://www.youtube.com/', rejectTimes: 1 });
   await popup.goto(popupUrl);
 
   await expect(popup.getByRole('status')).toContainText('Não deu para verificar agora.');
@@ -44,4 +44,25 @@ test('recovers from a failed check through the retry button', async ({ context, 
 
   await expect(popup.getByRole('heading', { name: 'youtube.com' })).toBeVisible();
   await expect(popup.getByRole('button', { name: 'Tentar de novo' })).toBeHidden();
+});
+
+test('keeps the error in place while retrying and keeps focus on retry', async ({
+  context,
+  popupUrl,
+}) => {
+  const popup = await context.newPage();
+  await stubActiveTab(popup, { url: 'https://www.youtube.com/', rejectTimes: 2, delayMs: 300 });
+  await popup.goto(popupUrl);
+  const retry = popup.getByRole('button', { name: 'Tentar de novo' });
+  await expect(retry).toBeVisible();
+
+  await retry.click();
+  await expect(retry).toBeDisabled();
+  await expect(popup.getByRole('heading', { name: 'Esta aba' })).toBeVisible();
+
+  await expect(retry).toBeEnabled();
+  await expect(retry).toBeFocused();
+
+  await popup.keyboard.press('Enter');
+  await expect(popup.getByRole('heading', { name: 'youtube.com' })).toBeVisible();
 });

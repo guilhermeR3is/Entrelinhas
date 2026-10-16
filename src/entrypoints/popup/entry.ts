@@ -15,23 +15,23 @@ export function entryFor(state: EntryState): Entry {
     case 'active':
       return {
         headword: state.site,
-        wordClass: 'site suportado',
-        definition: 'Ativa neste site.',
+        wordClass: 'site compatível',
+        definition: 'Ativa aqui.',
         thumbTab: 'lit',
         retry: false,
       };
     case 'inactive':
       return {
         headword: 'Este site',
-        wordClass: 'site não suportado',
-        definition: 'Ainda não funciona aqui. Por enquanto, só no YouTube.',
+        wordClass: 'não compatível',
+        definition: 'Por enquanto, só funciona no YouTube.',
         thumbTab: 'hidden',
         retry: false,
       };
     case 'error':
       return {
         headword: 'Esta aba',
-        wordClass: 'não verificada',
+        wordClass: 'sem resposta',
         definition: 'Não deu para verificar agora.',
         thumbTab: 'hidden',
         retry: true,

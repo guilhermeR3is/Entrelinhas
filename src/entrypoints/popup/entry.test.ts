@@ -5,8 +5,8 @@ describe('entryFor', () => {
   it('names the supported site and lights the thumb tab', () => {
     expect(entryFor({ kind: 'active', site: 'youtube.com' })).toEqual({
       headword: 'youtube.com',
-      wordClass: 'site suportado',
-      definition: 'Ativa neste site.',
+      wordClass: 'site compatível',
+      definition: 'Ativa aqui.',
       thumbTab: 'lit',
       retry: false,
     });
@@ -23,6 +23,19 @@ describe('entryFor', () => {
     const entry = entryFor({ kind: 'error' });
     expect(entry.retry).toBe(true);
     expect(entry.thumbTab).toBe('hidden');
+  });
+
+  it('never repeats a word between the headword and the word class', () => {
+    for (const state of [
+      { kind: 'active', site: 'youtube.com' },
+      { kind: 'inactive' },
+      { kind: 'error' },
+    ] as const) {
+      const { headword, wordClass } = entryFor(state);
+      const lastWord = headword.split(/\s+/).at(-1);
+      const firstWord = wordClass.split(/\s+/)[0];
+      expect(lastWord).not.toBe(firstWord);
+    }
   });
 
   it('never promises dual subtitles before they exist', () => {
