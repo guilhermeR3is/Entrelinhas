@@ -3,10 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>Projeto Bilíngue</title>
   </head>
   <body>
-    <main id="app"></main>
+    <header class="running-head">Projeto Bilíngue</header>
+    <main class="page">
+      <div class="status" role="status">
+        <p class="checking" hidden>Verificando esta aba…</p>
+        <article class="entry" hidden>
+          <div class="entry-line">
+            <h1 class="headword"></h1>
+            <span class="word-class"></span>
+          </div>
+          <p class="definition"></p>
+        </article>
+      </div>
+      <button class="retry" type="button" hidden>Tentar de novo</button>
+      <span class="thumb-tab" data-state="hidden" aria-hidden="true"></span>
+    </main>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

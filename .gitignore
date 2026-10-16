@@ -6,3 +6,5 @@ coverage
 web-ext.config.ts
 *.log
 .DS_Store
+test-results
+playwright-report

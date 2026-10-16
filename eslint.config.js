@@ -18,6 +18,14 @@ export default tseslint.config(
     },
   },
   {
+    files: ['src/logger.ts'],
+    rules: { 'no-console': 'off' },
+  },
+  {
+    files: ['e2e/fixtures.ts'],
+    rules: { 'no-empty-pattern': 'off' },
+  },
+  {
     files: ['**/*.js'],
     extends: [tseslint.configs.disableTypeChecked],
   },
