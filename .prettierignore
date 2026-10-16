@@ -1,0 +1,6 @@
+.*/
+!.github/
+*.md
+!README.md
+coverage
+package-lock.json
