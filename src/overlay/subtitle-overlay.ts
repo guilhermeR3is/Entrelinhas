@@ -13,6 +13,7 @@ const NOTICES: Record<OverlayNotice, { wordClass: string; definition: string }> 
 
 export class SubtitleOverlay {
   private readonly document: Document;
+  private readonly frame: HTMLElement;
   private readonly subtitle: HTMLElement;
   private readonly english: HTMLElement;
   private readonly portuguese: HTMLElement;
@@ -31,7 +32,12 @@ export class SubtitleOverlay {
     this.subtitle.hidden = true;
     this.status = this.element('div', 'status');
     this.status.setAttribute('role', 'status');
-    container.append(this.element('div', 'frame', this.subtitle, this.status));
+    this.frame = this.element('div', 'frame', this.subtitle, this.status);
+    container.append(this.frame);
+  }
+
+  setControlsLift(liftPx: number): void {
+    this.frame.style.setProperty('--controls-lift', `${String(liftPx)}px`);
   }
 
   showCues(english: readonly Cue[], portuguese: readonly Cue[] = NO_CUES): void {

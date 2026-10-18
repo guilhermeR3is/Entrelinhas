@@ -1,5 +1,6 @@
 import { type OverlayNotice, SubtitleOverlay } from '../overlay/subtitle-overlay';
 import { observeScreenCaptions } from './caption-observer';
+import { watchPlayerControls } from './player-controls';
 import type { CaptionStatus, YouTubeAdapter } from './youtube-adapter';
 
 const NOTICE_DELAY_S = 2;
@@ -16,6 +17,7 @@ export class SubtitleSession {
   private readonly listeners = new AbortController();
   private readonly nativeCaptions: HTMLElement | null;
   private readonly screenObserver: MutationObserver | undefined;
+  private readonly controlsObserver: MutationObserver;
   private frame = 0;
   private pendingNotice: PendingNotice | null = null;
   private shownNoticeKey: string | null = null;
@@ -33,6 +35,9 @@ export class SubtitleSession {
         this.render();
       });
     }
+    this.controlsObserver = watchPlayerControls(player, (liftPx) => {
+      this.overlay.setControlsLift(liftPx);
+    });
 
     const options = { capture: true, signal: this.listeners.signal };
     player.addEventListener('playing', this.play, options);
@@ -59,6 +64,7 @@ export class SubtitleSession {
     this.listeners.abort();
     cancelAnimationFrame(this.frame);
     this.screenObserver?.disconnect();
+    this.controlsObserver.disconnect();
     this.nativeCaptions?.style.removeProperty('visibility');
     this.overlay.hideNotice();
   }

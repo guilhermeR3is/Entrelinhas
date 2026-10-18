@@ -97,6 +97,11 @@ describe('SubtitleOverlay', () => {
     expect(container.querySelectorAll('.notice')).toHaveLength(1);
   });
 
+  it('hands the height of the player controls to the stylesheet', () => {
+    overlay.setControlsLift(59);
+    expect(find('.frame').style.getPropertyValue('--controls-lift')).toBe('59px');
+  });
+
   it('drops the notice as soon as a cue appears', () => {
     overlay.showNotice('captions-off');
     overlay.showCues([cue('Hello')]);
