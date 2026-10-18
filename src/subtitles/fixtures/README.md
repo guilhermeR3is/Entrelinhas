@@ -12,5 +12,11 @@ Os arquivos `.test` do web-platform-tests guardam o WebVTT depois da linha `===`
 especiais escritos como no Python (`\r`, `\x00`). Os testes decodificam esse trecho do mesmo jeito
 que o `tools/build.py` do projeto original.
 
+A pasta `youtube/` é a exceção: os arquivos foram escritos à mão, com frases próprias, imitando a
+estrutura das respostas json3 que o player do YouTube recebia em outubro de 2026 (`automatic.json`
+para a legenda automática, `styled.json` para a legenda estilizada pelo canal). `plain.json` usa o
+mesmo formato para uma legenda sem estilo, caso que ainda não foi visto numa resposta real. Nenhum
+texto de vídeo foi copiado.
+
 Sintel: © copyright Blender Foundation | durian.blender.org. Licença
 [Creative Commons Attribution 3.0](https://creativecommons.org/licenses/by/3.0/).

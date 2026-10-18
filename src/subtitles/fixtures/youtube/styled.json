@@ -1,0 +1,104 @@
+{
+  "wireMagic": "pb3",
+  "pens": [
+    {},
+    { "szPenSize": 100, "fcForeColor": 0, "foForeAlpha": 0, "boBackAlpha": 0 },
+    { "szPenSize": 100, "fcForeColor": 10529460, "foForeAlpha": 0, "boBackAlpha": 0 },
+    {
+      "bAttr": 1,
+      "szPenSize": 100,
+      "etEdgeType": 4,
+      "fcForeColor": 48359,
+      "foForeAlpha": 254,
+      "boBackAlpha": 0,
+      "ecEdgeColor": 0
+    },
+    {
+      "bAttr": 1,
+      "szPenSize": 100,
+      "etEdgeType": 3,
+      "fcForeColor": 48359,
+      "foForeAlpha": 254,
+      "boBackAlpha": 0,
+      "ecEdgeColor": 0
+    }
+  ],
+  "wsWinStyles": [{}, { "juJustifCode": 2 }],
+  "wpWinPositions": [{}, { "apPoint": 7, "ahHorPos": 50, "avVerPos": 95 }],
+  "events": [
+    {
+      "tStartMs": 0,
+      "dDurationMs": 3000,
+      "segs": [
+        { "utf8": "", "pPenId": 1 },
+        { "utf8": "" },
+        { "utf8": " If ", "pPenId": 3 },
+        { "utf8": "you ", "pPenId": 3, "tOffsetMs": 200 },
+        { "utf8": "want ", "pPenId": 3, "tOffsetMs": 420 },
+        { "utf8": " ", "pPenId": 3, "tOffsetMs": 421 },
+        { "utf8": "", "pPenId": 1, "tOffsetMs": 422 },
+        { "utf8": "\n", "pPenId": 1, "tOffsetMs": 423 },
+        { "utf8": "", "pPenId": 1, "tOffsetMs": 900 },
+        { "utf8": " ", "pPenId": 3, "tOffsetMs": 901 },
+        { "utf8": "to ", "pPenId": 3, "tOffsetMs": 902 },
+        { "utf8": "LEARN ", "pPenId": 3, "tOffsetMs": 1200 },
+        { "utf8": "something,", "pPenId": 3, "tOffsetMs": 1500 },
+        { "utf8": " ", "pPenId": 3, "tOffsetMs": 1501 },
+        { "utf8": "", "pPenId": 1, "tOffsetMs": 1502 }
+      ],
+      "wpWinPosId": 1,
+      "wsWinStyleId": 1
+    },
+    {
+      "tStartMs": 0,
+      "dDurationMs": 3000,
+      "segs": [
+        { "utf8": "", "pPenId": 1 },
+        { "utf8": "" },
+        { "utf8": " If ", "pPenId": 4 },
+        { "utf8": "you ", "pPenId": 4, "tOffsetMs": 200 },
+        { "utf8": "want ", "pPenId": 4, "tOffsetMs": 420 },
+        { "utf8": " ", "pPenId": 4, "tOffsetMs": 421 },
+        { "utf8": "", "pPenId": 1, "tOffsetMs": 422 },
+        { "utf8": "\n", "pPenId": 1, "tOffsetMs": 423 },
+        { "utf8": "", "pPenId": 1, "tOffsetMs": 900 },
+        { "utf8": " ", "pPenId": 4, "tOffsetMs": 901 },
+        { "utf8": "to ", "pPenId": 4, "tOffsetMs": 902 },
+        { "utf8": "LEARN ", "pPenId": 4, "tOffsetMs": 1200 },
+        { "utf8": "something,", "pPenId": 4, "tOffsetMs": 1500 },
+        { "utf8": " ", "pPenId": 4, "tOffsetMs": 1501 },
+        { "utf8": "", "pPenId": 1, "tOffsetMs": 1502 }
+      ],
+      "wpWinPosId": 1,
+      "wsWinStyleId": 1
+    },
+    {
+      "tStartMs": 3080,
+      "dDurationMs": 2120,
+      "segs": [
+        { "utf8": "", "pPenId": 1 },
+        { "utf8": "" },
+        { "utf8": " start ", "pPenId": 3 },
+        { "utf8": "today.", "pPenId": 3, "tOffsetMs": 430 },
+        { "utf8": " ", "pPenId": 3, "tOffsetMs": 431 },
+        { "utf8": "", "pPenId": 1, "tOffsetMs": 432 }
+      ],
+      "wpWinPosId": 1,
+      "wsWinStyleId": 1
+    },
+    {
+      "tStartMs": 3080,
+      "dDurationMs": 2120,
+      "segs": [
+        { "utf8": "", "pPenId": 1 },
+        { "utf8": "" },
+        { "utf8": " start ", "pPenId": 4 },
+        { "utf8": "today.", "pPenId": 4, "tOffsetMs": 430 },
+        { "utf8": " ", "pPenId": 4, "tOffsetMs": 431 },
+        { "utf8": "", "pPenId": 1, "tOffsetMs": 432 }
+      ],
+      "wpWinPosId": 1,
+      "wsWinStyleId": 1
+    }
+  ]
+}

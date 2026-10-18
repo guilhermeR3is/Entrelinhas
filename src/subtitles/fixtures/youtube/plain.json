@@ -1,0 +1,11 @@
+{
+  "wireMagic": "pb3",
+  "pens": [{}],
+  "wsWinStyles": [{}],
+  "wpWinPositions": [{}],
+  "events": [
+    { "tStartMs": 1000, "dDurationMs": 3000, "segs": [{ "utf8": "Where are you going?" }] },
+    { "tStartMs": 2500, "dDurationMs": 2500, "segs": [{ "utf8": "I don't know.\nMaybe home." }] },
+    { "tStartMs": 6000, "dDurationMs": 1500, "segs": [{ "utf8": "[music]" }] }
+  ]
+}
