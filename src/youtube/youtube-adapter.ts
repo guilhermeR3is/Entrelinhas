@@ -63,7 +63,7 @@ export class YouTubeAdapter {
     }
   }
 
-  private currentVideoId(): string | null {
+  currentVideoId(): string | null {
     const url = new URL(this.page.location.href);
     return url.pathname === '/watch' ? url.searchParams.get('v') : null;
   }
