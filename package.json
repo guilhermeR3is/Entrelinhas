@@ -18,7 +18,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "postinstall": "wxt prepare",
-    "test:e2e": "wxt build && playwright test"
+    "test:e2e": "wxt build && playwright test",
+    "test-page": "vite e2e/test-page --port 4321 --strictPort"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -31,6 +32,7 @@
     "prettier": "3.9.10",
     "typescript": "6.0.3",
     "typescript-eslint": "8.71.2",
+    "vite": "8.3.4",
     "vitest": "5.0.5",
     "wxt": "0.21.4"
   },

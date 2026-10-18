@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Test page</title>
+    <style>
+      body {
+        margin: 2rem;
+        font-family: system-ui, sans-serif;
+      }
+      #active-cues {
+        min-height: 4rem;
+        white-space: pre-line;
+      }
+    </style>
+  </head>
+  <body>
+    <video src="clock.webm" width="480" height="270" muted controls preload="auto">
+      <track kind="subtitles" src="subtitles.vtt" srclang="en" label="English" default />
+    </video>
+    <ol id="active-cues" aria-live="polite"></ol>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

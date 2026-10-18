@@ -1,0 +1,21 @@
+WEBVTT
+
+intro
+00:00:00.500 --> 00:00:02.000
+Hello, this is the <b>test page</b>.
+
+00:00:02.000 --> 00:00:04.100
+<v Narrator>Cues can touch end to end.</v>
+
+00:00:04.100 --> 00:00:09.000
+A long cue &amp; two short ones
+inside it.
+
+00:00:05.000 --> 00:00:06.000
+<i>First overlap</i>
+
+00:00:07.000 --> 00:00:08.000
+Second overlap &lt;3
+
+00:00:10.000 --> 00:00:11.500
+After a gap.
