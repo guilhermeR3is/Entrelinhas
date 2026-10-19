@@ -3,6 +3,7 @@ import type { Cue } from '../subtitles/cue';
 export type OverlayNotice = 'captions-off' | 'other-language' | 'unreadable';
 
 const NOTICE_MS = 5000;
+const NOTICE_FADE_MS = 160;
 const NO_CUES: readonly Cue[] = Object.freeze([]);
 
 const NOTICES: Record<OverlayNotice, { wordClass: string; definition: string }> = {
@@ -62,10 +63,14 @@ export class SubtitleOverlay {
     definitionElement.textContent = definition;
 
     const entry = this.element('p', 'entry-line', headword, wordClassElement);
-    this.status.replaceChildren(this.element('div', 'notice', entry, definitionElement));
+    const noticeElement = this.element('div', 'notice', entry, definitionElement);
+    this.status.replaceChildren(noticeElement);
     clearTimeout(this.noticeTimer);
     this.noticeTimer = setTimeout(() => {
-      this.hideNotice();
+      noticeElement.classList.add('leaving');
+      this.noticeTimer = setTimeout(() => {
+        this.hideNotice();
+      }, NOTICE_FADE_MS);
     }, NOTICE_MS);
   }
 

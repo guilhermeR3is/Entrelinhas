@@ -78,13 +78,35 @@ describe('SubtitleOverlay', () => {
     expect(find('.status .definition').textContent).toBe(definition);
   });
 
-  it('removes the notice after five seconds', () => {
+  it('fades the notice out after five seconds and then removes it', () => {
     vi.useFakeTimers();
     overlay.showNotice('captions-off');
     vi.advanceTimersByTime(4999);
+    expect(find('.notice').classList.contains('leaving')).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(find('.notice').classList.contains('leaving')).toBe(true);
+    vi.advanceTimersByTime(159);
     expect(find('.status').childElementCount).toBe(1);
     vi.advanceTimersByTime(1);
     expect(find('.status').childElementCount).toBe(0);
+  });
+
+  it('drops a fading notice at once when a cue appears', () => {
+    vi.useFakeTimers();
+    overlay.showNotice('captions-off');
+    vi.advanceTimersByTime(5000);
+    overlay.showCues([cue('Hello')]);
+    expect(find('.status').childElementCount).toBe(0);
+  });
+
+  it('gives a notice that replaces a fading one its full five seconds', () => {
+    vi.useFakeTimers();
+    overlay.showNotice('captions-off');
+    vi.advanceTimersByTime(5000);
+    overlay.showNotice('other-language');
+    vi.advanceTimersByTime(4999);
+    expect(find('.notice').classList.contains('leaving')).toBe(false);
+    expect(find('.status .word-class').textContent).toBe('outro idioma');
   });
 
   it('restarts the five seconds when a new notice replaces the old one', () => {
