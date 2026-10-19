@@ -3,6 +3,7 @@ import { fakeTranslatorApi } from '../../e2e/fake-translator';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import '../overlay/subtitle-overlay.css';
 import { loadSubtitleFont } from '../overlay/subtitle-font';
+import { listenForStudyKeys } from '../study/study-keys';
 import { PortugueseTranslation } from '../translation/portuguese-translation';
 import { findTranslatorApi } from '../translation/translator-api';
 import { SubtitleSession } from '../youtube/subtitle-session';
@@ -22,6 +23,7 @@ export default defineContentScript({
     const translatorApi =
       import.meta.env.MODE === 'e2e' ? fakeTranslatorApi(window) : findTranslatorApi(globalThis);
     void translation.prepare(translatorApi, window, ctx.signal);
+    listenForStudyKeys(window, (command) => session?.handleCommand(command) ?? false, ctx.signal);
     ctx.addEventListener(window, 'message', (event) => {
       adapter.receive(event);
       session?.render();

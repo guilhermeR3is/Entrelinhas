@@ -3,11 +3,12 @@ export const MAX_SPEED = 2;
 const STEPS_PER_UNIT = 20;
 const RESET_LIMIT = 3;
 const RESET_WINDOW_MS = 2000;
+const NORMAL_SPEED = 1;
 
 type SpeedTarget = EventTarget & { playbackRate: number };
 
 export type PlaybackSpeedOptions = {
-  onChange: (speed: number) => void;
+  onChange?: (speed: number) => void;
   personChangedSpeed: () => boolean;
   now?: () => number;
 };
@@ -48,13 +49,14 @@ export class PlaybackSpeed {
     this.chosen = clampSpeed(speed);
     this.resetTimes = [];
     if (!this.held) this.video.playbackRate = this.chosen;
-    this.options.onChange(this.chosen);
+    this.options.onChange?.(this.chosen);
   }
 
   setHeld(held: boolean): void {
     if (held === this.held) return;
     this.held = held;
-    if (!held && this.video.playbackRate !== this.chosen) this.video.playbackRate = this.chosen;
+    const speed = held ? NORMAL_SPEED : this.chosen;
+    if (this.video.playbackRate !== speed) this.video.playbackRate = speed;
   }
 
   stop(): void {
@@ -67,7 +69,7 @@ export class PlaybackSpeed {
     if (this.options.personChangedSpeed() || this.playerKeepsResetting()) {
       this.chosen = actual;
       this.resetTimes = [];
-      this.options.onChange(actual);
+      this.options.onChange?.(actual);
       return;
     }
     this.video.playbackRate = this.chosen;

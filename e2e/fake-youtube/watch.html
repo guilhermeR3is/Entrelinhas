@@ -40,6 +40,12 @@
         height: 59px;
         background: rgb(0 0 0 / 0.5);
       }
+      .ytp-settings-menu {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 2300;
+      }
       .ytp-fullscreen-button {
         position: absolute;
         right: 12px;
@@ -56,6 +62,7 @@
     </style>
   </head>
   <body>
+    <input id="search" aria-label="Pesquisar" />
     <div id="full-bleed-container"></div>
     <div id="player-container">
       <div id="movie_player" class="html5-video-player playing-mode">
@@ -63,6 +70,9 @@
           <video src="/clock.webm" muted loop preload="auto"></video>
         </div>
         <div id="ytp-caption-window-container"></div>
+        <div class="ytp-settings-menu">
+          <button class="ytp-speed-option" type="button" data-rate="1.5">1,5</button>
+        </div>
         <div class="ytp-chrome-bottom">
           <button class="ytp-fullscreen-button" type="button">Tela cheia</button>
         </div>
@@ -70,6 +80,15 @@
     </div>
     <script>
       const player = document.getElementById('movie_player');
+      const video = player.querySelector('video');
+      const keysSeen = [];
+      let rememberedSpeed = 1;
+
+      document.addEventListener('keydown', (event) => keysSeen.push(event.key));
+      document.querySelector('.ytp-speed-option').addEventListener('click', (event) => {
+        rememberedSpeed = Number(event.currentTarget.dataset.rate);
+        video.playbackRate = rememberedSpeed;
+      });
 
       document.querySelector('.ytp-fullscreen-button').addEventListener('click', () => {
         document.documentElement.requestFullscreen();
@@ -109,7 +128,11 @@
         openVideo: (videoId) => {
           history.pushState({}, '', `/watch?v=${videoId}`);
           loadCaptions();
+          setTimeout(() => {
+            video.playbackRate = rememberedSpeed;
+          }, 100);
         },
+        keysSeen: () => keysSeen,
       };
 
       loadCaptions();

@@ -1,5 +1,7 @@
 import overlayCss from '../../src/overlay/subtitle-overlay.css?inline';
 import { SubtitleOverlay, type TranslationState } from '../../src/overlay/subtitle-overlay';
+import { PlaybackSpeed } from '../../src/study/playback-speed';
+import { listenForStudyKeys } from '../../src/study/study-keys';
 import type { Cue } from '../../src/subtitles/cue';
 import { SubtitleTrack } from '../../src/subtitles/subtitle-track';
 import { parseWebVtt } from '../../src/subtitles/webvtt';
@@ -31,6 +33,15 @@ const overlayContainer = document.createElement('div');
 shadow.append(style, overlayContainer);
 player.append(overlayHost);
 const overlay = new SubtitleOverlay(overlayContainer);
+const speed = new PlaybackSpeed(video, { personChangedSpeed: () => false });
+listenForStudyKeys(
+  window,
+  (command) => {
+    speed.step(command === 'faster' ? 1 : -1);
+    return true;
+  },
+  new AbortController().signal,
+);
 
 const TRANSLATION_STATES: Record<string, TranslationState> = {
   'waiting-for-gesture': { kind: 'waiting-for-gesture' },

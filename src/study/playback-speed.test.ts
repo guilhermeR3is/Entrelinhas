@@ -128,18 +128,22 @@ describe('PlaybackSpeed', () => {
     expect(speed.speed).toBe(0.75);
   });
 
-  it('leaves the video alone while held and restores the speed when released', async () => {
+  it('plays at normal speed while held, ignores the player and restores the speed when released', async () => {
     const speed = createSpeed();
     speed.step(-5);
     await settle();
     speed.setHeld(true);
-    video.playbackRate = 1;
     await settle();
     expect(video.playbackRate).toBe(1);
+
+    video.playbackRate = 1.5;
+    await settle();
+    expect(video.playbackRate).toBe(1.5);
 
     speed.setHeld(false);
     await settle();
     expect(video.playbackRate).toBe(0.75);
+    expect(speed.speed).toBe(0.75);
   });
 
   it('remembers a speed chosen while held and applies it on release', async () => {

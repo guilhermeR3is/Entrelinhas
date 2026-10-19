@@ -3,10 +3,13 @@ import {
   SubtitleOverlay,
   type TranslationState,
 } from '../overlay/subtitle-overlay';
+import { PlaybackSpeed } from '../study/playback-speed';
+import type { StudyCommand } from '../study/study-keys';
 import type { Cue } from '../subtitles/cue';
 import type { PortugueseTranslation } from '../translation/portuguese-translation';
 import { observeScreenCaptions } from './caption-observer';
 import { watchPlayerControls } from './player-controls';
+import { watchSpeedIntent } from './speed-intent';
 import type { CaptionStatus, YouTubeAdapter } from './youtube-adapter';
 
 const NOTICE_DELAY_S = 2;
@@ -25,6 +28,9 @@ export class SubtitleSession {
   private readonly overlay: SubtitleOverlay;
   private readonly listeners = new AbortController();
   private readonly controlsObserver: MutationObserver;
+  private readonly personChangedSpeed: () => boolean;
+  private speed: PlaybackSpeed | undefined;
+  private speedVideo: HTMLVideoElement | null = null;
   private nativeCaptions: HTMLElement | null = null;
   private screenObserver: MutationObserver | undefined;
   private frame = 0;
@@ -43,6 +49,9 @@ export class SubtitleSession {
       this.overlay.setControlsLift(liftPx);
     });
 
+    const page = player.ownerDocument.defaultView;
+    this.personChangedSpeed = page ? watchSpeedIntent(page, this.listeners.signal) : () => false;
+
     const options = { capture: true, signal: this.listeners.signal };
     player.addEventListener('playing', this.play, options);
     for (const type of ['pause', 'seeked', 'emptied']) {
@@ -55,7 +64,9 @@ export class SubtitleSession {
     const video = this.player.querySelector('video');
     const timeS = video?.currentTime ?? 0;
     const nativeCaptions = this.followNativeCaptions();
-    if (this.player.classList.contains(AD_CLASS)) {
+    const isAd = this.player.classList.contains(AD_CLASS);
+    this.followSpeed(video)?.setHeld(isAd);
+    if (isAd) {
       this.overlay.showCues(NO_CUES);
       this.overlay.hideNotice();
       nativeCaptions?.style.removeProperty('visibility');
@@ -80,8 +91,15 @@ export class SubtitleSession {
     if (video && !video.paused) this.updateNotice(status, timeS);
   };
 
+  handleCommand(command: StudyCommand): boolean {
+    if (!this.speed || this.player.classList.contains(AD_CLASS)) return false;
+    this.speed.step(command === 'faster' ? 1 : -1);
+    return true;
+  }
+
   stop(): void {
     this.listeners.abort();
+    this.speed?.stop();
     cancelAnimationFrame(this.frame);
     this.screenObserver?.disconnect();
     this.controlsObserver.disconnect();
@@ -104,6 +122,16 @@ export class SubtitleSession {
     if (state === this.shownTranslationState) return;
     this.shownTranslationState = state;
     this.overlay.showTranslationState(state);
+  }
+
+  private followSpeed(video: HTMLVideoElement | null): PlaybackSpeed | undefined {
+    if (video === this.speedVideo) return this.speed;
+    this.speed?.stop();
+    this.speedVideo = video;
+    this.speed = video
+      ? new PlaybackSpeed(video, { personChangedSpeed: this.personChangedSpeed })
+      : undefined;
+    return this.speed;
   }
 
   private followNativeCaptions(): HTMLElement | null {

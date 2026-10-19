@@ -114,3 +114,13 @@ test('the overlay joins overlapping English cues above a single Portuguese cue',
     'Uma fala longa e duas curtas\ndentro dela.',
   );
 });
+
+test('Z and X change the speed in steps of 0.05 between 0.5 and 2', async ({ page }) => {
+  const speed = () => page.evaluate(() => document.querySelector('video')?.playbackRate);
+  await page.keyboard.press('x');
+  await expect.poll(speed).toBe(1.05);
+  for (let press = 0; press < 12; press += 1) await page.keyboard.press('z');
+  await expect.poll(speed).toBe(0.5);
+  for (let press = 0; press < 40; press += 1) await page.keyboard.press('x');
+  await expect.poll(speed).toBe(2);
+});

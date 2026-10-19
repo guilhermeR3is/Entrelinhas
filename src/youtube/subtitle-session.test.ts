@@ -248,6 +248,29 @@ describe('SubtitleSession', () => {
     expect(englishText()).toBe('Hello there');
   });
 
+  it('changes the speed with the study commands, even without captions', () => {
+    start();
+    expect(session?.handleCommand('slower')).toBe(true);
+    expect(session?.handleCommand('slower')).toBe(true);
+    expect(video.playbackRate).toBe(0.9);
+    session?.handleCommand('faster');
+    expect(video.playbackRate).toBe(0.95);
+  });
+
+  it('plays the ad at normal speed, ignores the commands and restores the speed after it', () => {
+    start();
+    session?.handleCommand('slower');
+    find('#movie_player').classList.add('ad-showing');
+    session?.render();
+    expect(video.playbackRate).toBe(1);
+    expect(session?.handleCommand('slower')).toBe(false);
+    expect(video.playbackRate).toBe(1);
+
+    find('#movie_player').classList.remove('ad-showing');
+    session?.render();
+    expect(video.playbackRate).toBe(0.95);
+  });
+
   it('stays quiet outside a watch page', () => {
     page.location.href = 'https://www.youtube.com/';
     start();

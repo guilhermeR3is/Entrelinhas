@@ -146,3 +146,64 @@ test('asks to turn captions on when the video has none playing', async ({ page }
   await play(page);
   await expect(page.locator(`${OVERLAY} .status .word-class`)).toHaveText('desligada');
 });
+
+function speed(page: Page): Promise<number | undefined> {
+  return page.evaluate(() => document.querySelector('video')?.playbackRate);
+}
+
+function keysSeenByPage(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    (window as unknown as { fakePlayer: { keysSeen: () => string[] } }).fakePlayer.keysSeen(),
+  );
+}
+
+test('Z and X change the speed without reaching the page, other keys pass', async ({ page }) => {
+  await open(page, 'video-a');
+  await page.keyboard.press('z');
+  await page.keyboard.press('z');
+  await page.keyboard.press('x');
+  await expect.poll(() => speed(page)).toBe(0.95);
+  await page.keyboard.press('k');
+  expect(await keysSeenByPage(page)).toEqual(['k']);
+});
+
+test('typing in the search box does not change the speed', async ({ page }) => {
+  await open(page, 'video-a');
+  await page.locator('#search').pressSequentially('xz');
+  await expect(page.locator('#search')).toHaveValue('xz');
+  expect(await speed(page)).toBe(1);
+});
+
+test('keeps the chosen speed when the player puts its own back on a new video', async ({
+  page,
+}) => {
+  await open(page, 'video-a');
+  await page.keyboard.press('z');
+  await fakePlayer(page, 'openVideo', 'video-b');
+  await expect(page.locator(ENGLISH)).toHaveText('Only line of video B');
+  await page.waitForTimeout(300);
+  expect(await speed(page)).toBe(0.95);
+});
+
+test('follows the speed the person picks in the player menu', async ({ page }) => {
+  await open(page, 'video-a');
+  await page.keyboard.press('z');
+  await page.locator('.ytp-speed-option').click();
+  await page.waitForTimeout(100);
+  expect(await speed(page)).toBe(1.5);
+  await page.locator('body').press('x');
+  await expect.poll(() => speed(page)).toBe(1.55);
+});
+
+test('plays the ad at normal speed and restores the chosen speed after it', async ({ page }) => {
+  await open(page, 'video-a');
+  await page.keyboard.press('z');
+  await play(page);
+  await fakePlayer(page, 'startAd');
+  await expect.poll(() => speed(page)).toBe(1);
+  await page.keyboard.press('z');
+  expect(await keysSeenByPage(page)).toEqual(['z']);
+
+  await fakePlayer(page, 'endAd');
+  await expect.poll(() => speed(page)).toBe(0.95);
+});
