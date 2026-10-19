@@ -82,7 +82,8 @@ export class PortugueseTranslation {
     const cueTranslator = this.cueTranslator;
     if (!cueTranslator) return;
     this.lineJob?.stop.abort();
-    const job: LineJob = { english, portuguese: NO_CUES, stop: new AbortController() };
+    const shown = english === '' ? NO_CUES : (this.lineJob?.portuguese ?? NO_CUES);
+    const job: LineJob = { english, portuguese: shown, stop: new AbortController() };
     this.lineJob = job;
     if (english === '') return;
 

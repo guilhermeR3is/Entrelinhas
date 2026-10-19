@@ -278,6 +278,33 @@ describe('SubtitleSession', () => {
       expect(portugueseLine()?.classList.contains('translation-state')).toBe(false);
     });
 
+    it('shows no Portuguese alone in a pause between two cues of the same sentence', async () => {
+      await translation.prepare(
+        fakeTranslatorApi(),
+        new EventTarget(),
+        new AbortController().signal,
+      );
+      receiveTrack(
+        'en',
+        JSON.stringify({
+          events: [
+            { tStartMs: 1000, dDurationMs: 1000, segs: [{ utf8: 'So I wrote' }] },
+            { tStartMs: 3000, dDurationMs: 1000, segs: [{ utf8: 'a thesis.' }] },
+          ],
+        }),
+      );
+      start();
+      playback.currentTime = 1.5;
+      session?.render();
+      await settle();
+      expect(portugueseLine()?.textContent).toBe('pt:So I wrote a thesis.');
+
+      playback.currentTime = 2.5;
+      session?.render();
+      expect(englishText()).toBeNull();
+      expect(portugueseLine()).toBeNull();
+    });
+
     it('prefers the official Portuguese track over the translation', async () => {
       await translation.prepare(
         fakeTranslatorApi(),

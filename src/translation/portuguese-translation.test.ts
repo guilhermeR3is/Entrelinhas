@@ -147,6 +147,16 @@ describe('PortugueseTranslation', () => {
     expect(translation.lineFor('so today we')).toBe(line);
   });
 
+  it('keeps the previous Portuguese while the next screen line is being translated', async () => {
+    await translation.prepare(fakeApi('available'), page, new AbortController().signal);
+    translation.lineFor('so today');
+    await settle();
+    expect(textsOf(translation.lineFor('so today we'))).toEqual(['pt:so today']);
+    await settle();
+    expect(textsOf(translation.lineFor('so today we'))).toEqual(['pt:so today we']);
+    expect(translation.lineFor('')).toEqual([]);
+  });
+
   it('forgets a line that left the screen before its translation arrived', async () => {
     await translation.prepare(fakeApi('available'), page, new AbortController().signal);
     translation.lineFor('so today');

@@ -70,7 +70,7 @@ export class SubtitleSession {
     const portuguese = official
       ? official.activeAt(timeMs)
       : this.translatedCues(status, english, timeMs);
-    this.overlay.showCues(english, portuguese);
+    this.overlay.showCues(english, english.length > 0 ? portuguese : NO_CUES);
     if (english.length > 0) this.followTranslationState(official ? null : this.translation.state());
     if (status === 'full-track' || status === 'screen') {
       nativeCaptions?.style.setProperty('visibility', 'hidden');
