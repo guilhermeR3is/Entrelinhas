@@ -1,9 +1,13 @@
 import { type OverlayNotice, SubtitleOverlay } from '../overlay/subtitle-overlay';
+import type { Cue } from '../subtitles/cue';
 import { observeScreenCaptions } from './caption-observer';
 import { watchPlayerControls } from './player-controls';
 import type { CaptionStatus, YouTubeAdapter } from './youtube-adapter';
 
 const NOTICE_DELAY_S = 2;
+const AD_CLASS = 'ad-showing';
+const NATIVE_CAPTIONS_SELECTOR = '#ytp-caption-window-container';
+const NO_CUES: readonly Cue[] = Object.freeze([]);
 const NOTICES: Partial<Record<CaptionStatus, OverlayNotice>> = {
   waiting: 'captions-off',
   'other-language': 'other-language',
@@ -15,9 +19,9 @@ type PendingNotice = { key: string; notice: OverlayNotice; sinceS: number };
 export class SubtitleSession {
   private readonly overlay: SubtitleOverlay;
   private readonly listeners = new AbortController();
-  private readonly nativeCaptions: HTMLElement | null;
-  private readonly screenObserver: MutationObserver | undefined;
   private readonly controlsObserver: MutationObserver;
+  private nativeCaptions: HTMLElement | null = null;
+  private screenObserver: MutationObserver | undefined;
   private frame = 0;
   private pendingNotice: PendingNotice | null = null;
   private shownNoticeKey: string | null = null;
@@ -28,13 +32,6 @@ export class SubtitleSession {
     private readonly adapter: YouTubeAdapter,
   ) {
     this.overlay = new SubtitleOverlay(container);
-    this.nativeCaptions = player.querySelector<HTMLElement>('#ytp-caption-window-container');
-    if (this.nativeCaptions) {
-      this.screenObserver = observeScreenCaptions(this.nativeCaptions, (text) => {
-        adapter.showScreenText(text);
-        this.render();
-      });
-    }
     this.controlsObserver = watchPlayerControls(player, (liftPx) => {
       this.overlay.setControlsLift(liftPx);
     });
@@ -50,12 +47,21 @@ export class SubtitleSession {
   readonly render = (): void => {
     const video = this.player.querySelector('video');
     const timeS = video?.currentTime ?? 0;
+    const nativeCaptions = this.followNativeCaptions();
+    if (this.player.classList.contains(AD_CLASS)) {
+      this.overlay.showCues(NO_CUES);
+      this.overlay.hideNotice();
+      nativeCaptions?.style.removeProperty('visibility');
+      this.pendingNotice = null;
+      return;
+    }
+
     this.overlay.showCues(this.adapter.activeCues(Math.round(timeS * 1000)));
     const status = this.adapter.status();
     if (status === 'full-track' || status === 'screen') {
-      this.nativeCaptions?.style.setProperty('visibility', 'hidden');
+      nativeCaptions?.style.setProperty('visibility', 'hidden');
     } else {
-      this.nativeCaptions?.style.removeProperty('visibility');
+      nativeCaptions?.style.removeProperty('visibility');
     }
     if (video && !video.paused) this.updateNotice(status, timeS);
   };
@@ -67,6 +73,22 @@ export class SubtitleSession {
     this.controlsObserver.disconnect();
     this.nativeCaptions?.style.removeProperty('visibility');
     this.overlay.hideNotice();
+  }
+
+  private followNativeCaptions(): HTMLElement | null {
+    const captions = this.player.querySelector<HTMLElement>(NATIVE_CAPTIONS_SELECTOR);
+    if (captions === this.nativeCaptions) return captions;
+
+    this.screenObserver?.disconnect();
+    this.nativeCaptions?.style.removeProperty('visibility');
+    this.nativeCaptions = captions;
+    this.screenObserver = captions
+      ? observeScreenCaptions(captions, (text) => {
+          this.adapter.showScreenText(text);
+          this.render();
+        })
+      : undefined;
+    return captions;
   }
 
   private readonly play = (): void => {

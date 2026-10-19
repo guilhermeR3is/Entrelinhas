@@ -138,6 +138,30 @@ describe('SubtitleSession', () => {
     expect(nativeCaptions.style.visibility).toBe('');
   });
 
+  function replaceNativeCaptions(): HTMLElement {
+    const newCaptions = document.createElement('div');
+    newCaptions.id = 'ytp-caption-window-container';
+    find('#ytp-caption-window-container').replaceWith(newCaptions);
+    return newCaptions;
+  }
+
+  it('hides the new captions container when the player replaces it', () => {
+    start();
+    const newCaptions = replaceNativeCaptions();
+    receiveTrack();
+    session?.render();
+    expect(newCaptions.style.visibility).toBe('hidden');
+  });
+
+  it('reads the screen from the new captions container while the video plays', async () => {
+    start();
+    const newCaptions = replaceNativeCaptions();
+    playUntil(0.5);
+    newCaptions.innerHTML = '<span class="caption-visual-line">Read from the new container</span>';
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(englishText()).toBe('Read from the new container');
+  });
+
   it('keeps the original captions visible when they are in another language', () => {
     receiveTrack('pt');
     start();
@@ -171,6 +195,21 @@ describe('SubtitleSession', () => {
     start();
     playUntil(2.5);
     expect(find('.status .word-class').textContent).toBe('outro idioma');
+  });
+
+  it('shows no cue and no notice while an ad plays, and comes back after it', () => {
+    receiveTrack();
+    start();
+    find('#movie_player').classList.add('ad-showing');
+    playUntil(2.5);
+    expect(englishText()).toBeNull();
+    expect(find('.status').textContent).toBe('');
+    expect(find('#ytp-caption-window-container').style.visibility).toBe('');
+
+    find('#movie_player').classList.remove('ad-showing');
+    playback.currentTime = 1.5;
+    session?.render();
+    expect(englishText()).toBe('Hello there');
   });
 
   it('stays quiet outside a watch page', () => {

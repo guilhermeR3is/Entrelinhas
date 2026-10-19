@@ -5,6 +5,7 @@
 
   position: absolute;
   inset: 0;
+  z-index: 40;
   container-type: size;
   display: flex;
   flex-direction: column;
