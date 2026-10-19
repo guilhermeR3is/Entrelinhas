@@ -1,5 +1,5 @@
 import overlayCss from '../../src/overlay/subtitle-overlay.css?inline';
-import { SubtitleOverlay } from '../../src/overlay/subtitle-overlay';
+import { SubtitleOverlay, type TranslationState } from '../../src/overlay/subtitle-overlay';
 import type { Cue } from '../../src/subtitles/cue';
 import { SubtitleTrack } from '../../src/subtitles/subtitle-track';
 import { parseWebVtt } from '../../src/subtitles/webvtt';
@@ -32,11 +32,24 @@ shadow.append(style, overlayContainer);
 player.append(overlayHost);
 const overlay = new SubtitleOverlay(overlayContainer);
 
+const TRANSLATION_STATES: Record<string, TranslationState> = {
+  'waiting-for-gesture': { kind: 'waiting-for-gesture' },
+  downloading: { kind: 'downloading', progress: 0.4 },
+  unsupported: { kind: 'unsupported' },
+  'download-failed': { kind: 'download-failed' },
+  'translation-failed': { kind: 'translation-failed' },
+};
+const translationState =
+  TRANSLATION_STATES[new URLSearchParams(location.search).get('translation-state') ?? ''];
+if (translationState) overlay.showTranslationState(translationState);
+const portugueseCuesAt = (timeMs: number) =>
+  translationState ? [] : portugueseTrack.activeAt(timeMs);
+
 let shownCues: readonly Cue[] = [];
 const renderActiveCues = (): void => {
   const timeMs = Math.round(video.currentTime * 1000);
   const activeCues = subtitleTrack.activeAt(timeMs);
-  overlay.showCues(activeCues, portugueseTrack.activeAt(timeMs));
+  overlay.showCues(activeCues, portugueseCuesAt(timeMs));
   if (activeCues === shownCues) return;
   shownCues = activeCues;
   activeCueList.replaceChildren(

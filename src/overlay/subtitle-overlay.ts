@@ -1,6 +1,12 @@
 import type { Cue } from '../subtitles/cue';
 
 export type OverlayNotice = 'captions-off' | 'other-language' | 'unreadable';
+export type TranslationState =
+  | { kind: 'waiting-for-gesture' }
+  | { kind: 'downloading'; progress: number }
+  | { kind: 'unsupported' }
+  | { kind: 'download-failed' }
+  | { kind: 'translation-failed' };
 
 const NOTICE_MS = 5000;
 const NOTICE_FADE_MS = 160;
@@ -12,6 +18,15 @@ const NOTICES: Record<OverlayNotice, { wordClass: string; definition: string }> 
   unreadable: { wordClass: 'indisponível', definition: 'Não deu para ler a legenda deste vídeo.' },
 };
 
+const TRANSLATION_STATES: Record<TranslationState['kind'], string> = {
+  'waiting-for-gesture': 'Clique na página para ligar o português.',
+  downloading: 'Baixando o português…',
+  unsupported: 'Este navegador não traduz para o português.',
+  'download-failed': 'Não deu para baixar o português. Recarregue a página.',
+  'translation-failed': 'Não deu para traduzir este vídeo.',
+};
+const LASTING_STATES = new Set<TranslationState['kind']>(['waiting-for-gesture', 'downloading']);
+
 export class SubtitleOverlay {
   private readonly document: Document;
   private readonly frame: HTMLElement;
@@ -19,9 +34,12 @@ export class SubtitleOverlay {
   private readonly english: HTMLElement;
   private readonly portuguese: HTMLElement;
   private readonly status: HTMLElement;
+  private readonly announcer: HTMLElement;
   private shownEnglish = NO_CUES;
   private shownPortuguese = NO_CUES;
+  private translationState: TranslationState | null = null;
   private noticeTimer: ReturnType<typeof setTimeout> | undefined;
+  private translationStateTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(container: Element) {
     this.document = container.ownerDocument;
@@ -33,7 +51,10 @@ export class SubtitleOverlay {
     this.subtitle.hidden = true;
     this.status = this.element('div', 'status');
     this.status.setAttribute('role', 'status');
-    this.frame = this.element('div', 'frame', this.subtitle, this.status);
+    this.announcer = this.element('p', 'announcer');
+    this.announcer.setAttribute('role', 'status');
+    this.announcer.lang = 'pt-BR';
+    this.frame = this.element('div', 'frame', this.subtitle, this.status, this.announcer);
     container.append(this.frame);
   }
 
@@ -47,10 +68,24 @@ export class SubtitleOverlay {
     this.shownPortuguese = portuguese;
 
     this.english.textContent = textOf(english);
-    this.portuguese.textContent = textOf(portuguese);
-    this.portuguese.hidden = portuguese.length === 0;
     this.subtitle.hidden = english.length === 0 && portuguese.length === 0;
+    this.renderPortuguese();
     if (!this.subtitle.hidden) this.hideNotice();
+  }
+
+  showTranslationState(state: TranslationState | null): void {
+    const changedKind = state?.kind !== this.translationState?.kind;
+    this.translationState = state;
+    if (changedKind) {
+      clearTimeout(this.translationStateTimer);
+      this.announcer.textContent = state ? TRANSLATION_STATES[state.kind] : '';
+      if (state && !LASTING_STATES.has(state.kind)) {
+        this.translationStateTimer = setTimeout(() => {
+          this.showTranslationState(null);
+        }, NOTICE_MS);
+      }
+    }
+    this.renderPortuguese();
   }
 
   showNotice(notice: OverlayNotice): void {
@@ -77,6 +112,26 @@ export class SubtitleOverlay {
   hideNotice(): void {
     clearTimeout(this.noticeTimer);
     this.status.replaceChildren();
+  }
+
+  private renderPortuguese(): void {
+    const portuguese = this.shownPortuguese;
+    const state = this.translationState;
+    this.portuguese.classList.toggle('translation-state', portuguese.length === 0 && !!state);
+    if (portuguese.length > 0) {
+      this.portuguese.textContent = textOf(portuguese);
+    } else if (state) {
+      this.portuguese.replaceChildren(TRANSLATION_STATES[state.kind]);
+      if (state.kind === 'downloading') {
+        const percent = this.element('span', 'percent');
+        percent.textContent = ` ${String(Math.round(state.progress * 100))}%`;
+        percent.setAttribute('aria-hidden', 'true');
+        this.portuguese.append(percent);
+      }
+    } else {
+      this.portuguese.replaceChildren();
+    }
+    this.portuguese.hidden = portuguese.length === 0 && !state;
   }
 
   private element(tag: string, className: string, ...children: Node[]): HTMLElement {

@@ -58,6 +58,24 @@
   white-space: pre-line;
 }
 
+.translation-state {
+  font-style: italic;
+}
+
+.percent {
+  font-variant-numeric: tabular-nums;
+}
+
+.announcer {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .notice {
   font-size: max(1em, 3.2cqh);
   transition:

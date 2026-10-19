@@ -129,4 +129,96 @@ describe('SubtitleOverlay', () => {
     overlay.showCues([cue('Hello')]);
     expect(find('.status').childElementCount).toBe(0);
   });
+
+  describe('translation state', () => {
+    it('takes the place of the Portuguese line, in italics, under the English', () => {
+      overlay.showTranslationState({ kind: 'waiting-for-gesture' });
+      overlay.showCues([cue('So I wrote a 90-page thesis')]);
+      const portuguese = find('.portuguese');
+      expect(portuguese.hidden).toBe(false);
+      expect(portuguese.textContent).toBe('Clique na página para ligar o português.');
+      expect(portuguese.classList.contains('translation-state')).toBe(true);
+    });
+
+    it('stays out of sight between cues', () => {
+      overlay.showTranslationState({ kind: 'waiting-for-gesture' });
+      overlay.showCues([]);
+      expect(find('.subtitle').hidden).toBe(true);
+    });
+
+    it('gives way to the translation as soon as it arrives', () => {
+      overlay.showCues([cue('Hello.')]);
+      overlay.showTranslationState({ kind: 'downloading', progress: 0.5 });
+      overlay.showCues([cue('Hello.')], [cue('Olá.', 'pt')]);
+      const portuguese = find('.portuguese');
+      expect(portuguese.textContent).toBe('Olá.');
+      expect(portuguese.classList.contains('translation-state')).toBe(false);
+    });
+
+    it('shows the download progress as a whole percentage that is not read aloud', () => {
+      overlay.showCues([cue('Hello.')]);
+      overlay.showTranslationState({ kind: 'downloading', progress: 0.416 });
+      expect(find('.portuguese').textContent).toBe('Baixando o português… 42%');
+      expect(find('.percent').getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('announces a new state once, not every step of the download', () => {
+      overlay.showCues([cue('Hello.')]);
+      const announcer = find('.announcer');
+      expect(announcer.getAttribute('role')).toBe('status');
+
+      overlay.showTranslationState({ kind: 'downloading', progress: 0 });
+      const announcement = announcer.firstChild;
+      overlay.showTranslationState({ kind: 'downloading', progress: 0.7 });
+      expect(announcer.textContent).toBe('Baixando o português…');
+      expect(announcer.firstChild).toBe(announcement);
+      expect(find('.percent').textContent).toBe(' 70%');
+    });
+
+    it.each([
+      ['unsupported', 'Este navegador não traduz para o português.'],
+      ['download-failed', 'Não deu para baixar o português. Recarregue a página.'],
+      ['translation-failed', 'Não deu para traduzir este vídeo.'],
+    ] as const)('shows %s for five seconds and then leaves English alone', (kind, text) => {
+      vi.useFakeTimers();
+      overlay.showCues([cue('Hello.')]);
+      overlay.showTranslationState({ kind });
+      expect(find('.portuguese').textContent).toBe(text);
+
+      vi.advanceTimersByTime(4999);
+      expect(find('.portuguese').hidden).toBe(false);
+      vi.advanceTimersByTime(1);
+      expect(find('.portuguese').hidden).toBe(true);
+      expect(find('.announcer').textContent).toBe('');
+    });
+
+    it('keeps waiting for the click and the download for as long as they last', () => {
+      vi.useFakeTimers();
+      overlay.showCues([cue('Hello.')]);
+      overlay.showTranslationState({ kind: 'waiting-for-gesture' });
+      vi.advanceTimersByTime(60_000);
+      expect(find('.portuguese').hidden).toBe(false);
+      overlay.showTranslationState({ kind: 'downloading', progress: 0.1 });
+      vi.advanceTimersByTime(60_000);
+      expect(find('.portuguese').textContent).toBe('Baixando o português… 10%');
+    });
+
+    it('clears the line when told there is nothing to say', () => {
+      overlay.showCues([cue('Hello.')]);
+      overlay.showTranslationState({ kind: 'waiting-for-gesture' });
+      overlay.showTranslationState(null);
+      expect(find('.portuguese').hidden).toBe(true);
+      expect(find('.portuguese').textContent).toBe('');
+    });
+
+    it('does not let an old five-second timer clear a newer state', () => {
+      vi.useFakeTimers();
+      overlay.showCues([cue('Hello.')]);
+      overlay.showTranslationState({ kind: 'unsupported' });
+      vi.advanceTimersByTime(3000);
+      overlay.showTranslationState({ kind: 'waiting-for-gesture' });
+      vi.advanceTimersByTime(3000);
+      expect(find('.portuguese').textContent).toBe('Clique na página para ligar o português.');
+    });
+  });
 });
