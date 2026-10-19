@@ -18,6 +18,9 @@ const TranslationRequest = z.discriminatedUnion('type', [
   }),
 ]);
 
+const FoundTranslations = z.object({ translations: z.array(z.nullable(z.string())) });
+const SavedTranslations = z.object({ saved: z.literal(true) });
+
 export type TranslationRequest = z.infer<typeof TranslationRequest>;
 export type TranslationResponse =
   { translations: (string | null)[] } | { saved: true } | { failed: true };
@@ -25,6 +28,16 @@ export type TranslationResponse =
 export function readTranslationRequest(data: unknown): TranslationRequest | null {
   const request = TranslationRequest.safeParse(data);
   return request.success ? request.data : null;
+}
+
+export function readFoundTranslations(data: unknown, count: number): (string | null)[] | null {
+  const response = FoundTranslations.safeParse(data);
+  if (!response.success || response.data.translations.length !== count) return null;
+  return response.data.translations;
+}
+
+export function isSavedResponse(data: unknown): boolean {
+  return SavedTranslations.safeParse(data).success;
 }
 
 export async function answerTranslationRequest(
