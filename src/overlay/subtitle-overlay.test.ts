@@ -221,4 +221,112 @@ describe('SubtitleOverlay', () => {
       expect(find('.portuguese').textContent).toBe('Clique na página para ligar o português.');
     });
   });
+
+  describe('study strip', () => {
+    const onCommand = vi.fn();
+
+    beforeEach(() => {
+      container.replaceChildren();
+      onCommand.mockClear();
+      overlay = new SubtitleOverlay(container, onCommand);
+    });
+
+    function stripShown(): boolean {
+      return find('.strip').classList.contains('shown') && !find('.box').hidden;
+    }
+
+    it('stays out of sight while the video plays', () => {
+      overlay.setStudyState(true, false);
+      overlay.showCues([cue('Hello')]);
+      expect(stripShown()).toBe(false);
+      expect(find('.box').hidden).toBe(false);
+    });
+
+    it('shows while the video is paused, even between cues', () => {
+      overlay.setStudyState(true, true);
+      expect(stripShown()).toBe(true);
+      expect(find('.subtitle').hidden).toBe(true);
+    });
+
+    it('never shows when studying is not available, such as during an ad', () => {
+      overlay.setStudyState(false, true);
+      overlay.flashStrip();
+      expect(stripShown()).toBe(false);
+      expect(find('.box').hidden).toBe(true);
+    });
+
+    it('shows for a second and a half after a key', () => {
+      vi.useFakeTimers();
+      overlay.setStudyState(true, false);
+      overlay.flashStrip();
+      expect(stripShown()).toBe(true);
+      vi.advanceTimersByTime(1400);
+      overlay.flashStrip();
+      vi.advanceTimersByTime(1400);
+      expect(stripShown()).toBe(true);
+      vi.advanceTimersByTime(100);
+      expect(stripShown()).toBe(false);
+    });
+
+    it('stays while a control has the keyboard focus', () => {
+      overlay.setStudyState(true, false);
+      overlay.showCues([cue('Hello')]);
+      find('.strip button').focus();
+      expect(stripShown()).toBe(true);
+      find('.strip button').blur();
+      expect(stripShown()).toBe(false);
+    });
+
+    it('shows the speed the Brazilian way and marks the ends of the range', () => {
+      const [slower, faster] = Array.from(container.querySelectorAll('.strip button'));
+      expect(find('.speed').textContent).toBe('1x');
+      overlay.setSpeed(0.85);
+      expect(find('.speed').textContent).toBe('0,85x');
+      overlay.setSpeed(0.5);
+      expect(slower?.getAttribute('aria-disabled')).toBe('true');
+      expect(faster?.getAttribute('aria-disabled')).toBe('false');
+      overlay.setSpeed(2);
+      expect(faster?.getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('names each button with its key and runs its command', () => {
+      const [slower, faster] = Array.from(
+        container.querySelectorAll<HTMLButtonElement>('.strip button'),
+      );
+      expect(slower?.getAttribute('aria-label')).toBe('Mais devagar');
+      expect(slower?.getAttribute('aria-keyshortcuts')).toBe('Z');
+      expect(faster?.textContent).toBe('+X');
+      slower?.click();
+      faster?.click();
+      expect(onCommand.mock.calls).toEqual([['slower'], ['faster']]);
+    });
+
+    it('ignores a press on a button at the end of the range', () => {
+      overlay.setSpeed(2);
+      container.querySelectorAll<HTMLButtonElement>('.strip button')[1]?.click();
+      expect(onCommand).not.toHaveBeenCalled();
+    });
+
+    it('keeps clicks inside the box away from the player', () => {
+      const reachedPlayer = vi.fn();
+      container.addEventListener('click', reachedPlayer);
+      container.addEventListener('dblclick', reachedPlayer);
+      find('.strip button').click();
+      const view = container.ownerDocument.defaultView;
+      if (!view) throw new Error('Missing window');
+      find('.english').dispatchEvent(new view.MouseEvent('dblclick', { bubbles: true }));
+      expect(reachedPlayer).not.toHaveBeenCalled();
+    });
+
+    it('keeps the keys pressed on a control away from the player', () => {
+      const reachedPlayer = vi.fn();
+      container.addEventListener('keydown', reachedPlayer);
+      const view = container.ownerDocument.defaultView;
+      if (!view) throw new Error('Missing window');
+      find('.strip button').dispatchEvent(
+        new view.KeyboardEvent('keydown', { key: ' ', bubbles: true }),
+      );
+      expect(reachedPlayer).not.toHaveBeenCalled();
+    });
+  });
 });

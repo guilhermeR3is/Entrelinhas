@@ -124,3 +124,12 @@ test('Z and X change the speed in steps of 0.05 between 0.5 and 2', async ({ pag
   for (let press = 0; press < 40; press += 1) await page.keyboard.press('x');
   await expect.poll(speed).toBe(2);
 });
+
+test('the study strip shows the speed and its buttons change it', async ({ page }) => {
+  const strip = page.locator('.strip');
+  await expect(strip).toBeVisible();
+  await expect(strip.locator('.speed')).toHaveText('1x');
+  await page.getByRole('button', { name: 'Mais devagar' }).click();
+  await expect(strip.locator('.speed')).toHaveText('0,95x');
+  expect(await page.evaluate(() => document.querySelector('video')?.playbackRate)).toBe(0.95);
+});

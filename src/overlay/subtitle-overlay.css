@@ -2,6 +2,7 @@
   --paper: #f1f2ee;
   --note: #a3a8b0;
   --backing: rgb(23 25 30 / 0.86);
+  --rule: #2e3138;
 
   position: absolute;
   inset: 0;
@@ -28,21 +29,103 @@
   margin-block-end: 4cqh;
 }
 
-.subtitle,
+.box,
 .notice {
-  max-width: min(34em, 90cqw);
-  padding: 0.25em 0.5em;
   border-radius: 4px;
   background: var(--backing);
-  text-align: center;
-  text-wrap: balance;
-  overflow-wrap: anywhere;
   translate: 0 calc(-1 * max(0px, var(--controls-lift, 0px) + 8px - 4cqh));
   transition: translate 160ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
+.box {
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+}
+
+.subtitle,
+.notice {
+  max-width: min(34em, 90cqw);
+  padding: 0.25em 0.5em;
+  text-align: center;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
 .subtitle {
   font-size: max(1.25em, 4cqh);
+}
+
+.strip {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25em;
+  padding: 0.25em 0.5em;
+  font-size: max(0.875em, 2.4cqh);
+  line-height: 1;
+}
+
+.strip.shown,
+.box.study:hover .strip {
+  display: flex;
+}
+
+.box:has(.subtitle:not([hidden])) .strip {
+  border-block-end: 1px solid var(--rule);
+}
+
+.strip button {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.25em;
+  min-width: 1.75em;
+  min-height: 1.75em;
+  padding: 0.375em 0.5em;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease-out,
+    scale 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .strip button:not([aria-disabled='true']):hover {
+    background: var(--rule);
+  }
+}
+
+.strip button:not([aria-disabled='true']):active {
+  scale: 0.97;
+}
+
+.strip button:focus-visible {
+  outline: 2px solid var(--paper);
+  outline-offset: 2px;
+}
+
+.strip button[aria-disabled='true'] {
+  color: var(--note);
+  cursor: default;
+}
+
+.strip kbd {
+  font: inherit;
+  font-weight: 400;
+  color: var(--note);
+}
+
+.speed {
+  min-width: 3.5em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 .english {
@@ -94,9 +177,17 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .subtitle,
+  .box,
   .notice {
     transition: opacity 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .strip button {
+    transition: background-color 120ms ease-out;
+  }
+
+  .strip button:not([aria-disabled='true']):active {
+    scale: none;
   }
 }
 

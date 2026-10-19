@@ -207,3 +207,51 @@ test('plays the ad at normal speed and restores the chosen speed after it', asyn
   await fakePlayer(page, 'endAd');
   await expect.poll(() => speed(page)).toBe(0.95);
 });
+
+const STRIP = `${OVERLAY} .strip`;
+
+test('shows the study strip while paused, hides it while playing and brings it back on hover', async ({
+  page,
+}) => {
+  await open(page, 'video-a');
+  await expect(page.locator(STRIP)).toBeVisible();
+  await play(page);
+  await page.mouse.move(5, 5);
+  await expect(page.locator(STRIP)).toBeHidden();
+
+  await page.locator(ENGLISH).hover();
+  await expect(page.locator(STRIP)).toBeVisible();
+});
+
+test('shows the new speed on the strip after a key, then hides it again', async ({ page }) => {
+  await open(page, 'video-a');
+  await play(page);
+  await page.mouse.move(5, 5);
+  await page.keyboard.press('z');
+  await expect(page.locator(`${STRIP} .speed`)).toHaveText('0,95x');
+  await expect(page.locator(STRIP)).toBeVisible();
+  await expect(page.locator(STRIP)).toBeHidden({ timeout: 3000 });
+});
+
+test('the strip buttons change the speed and keep their keys away from the player', async ({
+  page,
+}) => {
+  await open(page, 'video-a');
+  await page.getByRole('button', { name: 'Mais rápido' }).click();
+  await expect(page.locator(`${STRIP} .speed`)).toHaveText('1,05x');
+  await page.getByRole('button', { name: 'Mais devagar' }).focus();
+  await page.keyboard.press('Space');
+  await expect.poll(() => speed(page)).toBe(1);
+  expect(await keysSeenByPage(page)).toEqual([]);
+});
+
+test('keeps the study strip away during an ad', async ({ page }) => {
+  await open(page, 'video-a');
+  await play(page);
+  await fakePlayer(page, 'startAd');
+  await page.mouse.move(427, 400);
+  await expect(page.locator(STRIP)).toBeHidden();
+  await fakePlayer(page, 'endAd');
+  await page.locator(ENGLISH).hover();
+  await expect(page.locator(STRIP)).toBeVisible();
+});

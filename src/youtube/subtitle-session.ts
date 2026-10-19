@@ -16,6 +16,7 @@ const NOTICE_DELAY_S = 2;
 const AD_CLASS = 'ad-showing';
 const NATIVE_CAPTIONS_SELECTOR = '#ytp-caption-window-container';
 const NO_CUES: readonly Cue[] = Object.freeze([]);
+const STUDY_STATUSES = new Set<CaptionStatus>(['full-track', 'screen']);
 const NOTICES: Partial<Record<CaptionStatus, OverlayNotice>> = {
   waiting: 'captions-off',
   'other-language': 'other-language',
@@ -44,7 +45,9 @@ export class SubtitleSession {
     private readonly adapter: YouTubeAdapter,
     private readonly translation: PortugueseTranslation,
   ) {
-    this.overlay = new SubtitleOverlay(container);
+    this.overlay = new SubtitleOverlay(container, (command) => {
+      this.handleCommand(command);
+    });
     this.controlsObserver = watchPlayerControls(player, (liftPx) => {
       this.overlay.setControlsLift(liftPx);
     });
@@ -67,6 +70,7 @@ export class SubtitleSession {
     const isAd = this.player.classList.contains(AD_CLASS);
     this.followSpeed(video)?.setHeld(isAd);
     if (isAd) {
+      this.overlay.setStudyState(false, false);
       this.overlay.showCues(NO_CUES);
       this.overlay.hideNotice();
       nativeCaptions?.style.removeProperty('visibility');
@@ -76,6 +80,7 @@ export class SubtitleSession {
 
     const timeMs = Math.round(timeS * 1000);
     const status = this.adapter.status();
+    this.overlay.setStudyState(STUDY_STATUSES.has(status), video?.paused ?? true);
     const english = this.adapter.activeCues(timeMs);
     const official = status === 'full-track' ? this.adapter.officialPortugueseTrack() : null;
     const portuguese = official
@@ -94,6 +99,7 @@ export class SubtitleSession {
   handleCommand(command: StudyCommand): boolean {
     if (!this.speed || this.player.classList.contains(AD_CLASS)) return false;
     this.speed.step(command === 'faster' ? 1 : -1);
+    this.overlay.flashStrip();
     return true;
   }
 
@@ -129,8 +135,14 @@ export class SubtitleSession {
     this.speed?.stop();
     this.speedVideo = video;
     this.speed = video
-      ? new PlaybackSpeed(video, { personChangedSpeed: this.personChangedSpeed })
+      ? new PlaybackSpeed(video, {
+          personChangedSpeed: this.personChangedSpeed,
+          onChange: (speed) => {
+            this.overlay.setSpeed(speed);
+          },
+        })
       : undefined;
+    if (this.speed) this.overlay.setSpeed(this.speed.speed);
     return this.speed;
   }
 

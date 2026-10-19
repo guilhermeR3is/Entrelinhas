@@ -271,6 +271,16 @@ describe('SubtitleSession', () => {
     expect(video.playbackRate).toBe(0.95);
   });
 
+  it('shows the study strip while paused, but not over a paused ad', () => {
+    receiveTrack();
+    start();
+    expect(find('.strip').classList.contains('shown')).toBe(true);
+
+    find('#movie_player').classList.add('ad-showing');
+    session?.render();
+    expect(find('.strip').classList.contains('shown')).toBe(false);
+  });
+
   it('stays quiet outside a watch page', () => {
     page.location.href = 'https://www.youtube.com/';
     start();

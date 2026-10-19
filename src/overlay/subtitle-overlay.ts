@@ -1,4 +1,6 @@
+import type { StudyCommand } from '../study/study-keys';
 import type { Cue } from '../subtitles/cue';
+import { StudyStrip } from './study-strip';
 
 export type OverlayNotice = 'captions-off' | 'other-language' | 'unreadable';
 export type TranslationState =
@@ -10,6 +12,16 @@ export type TranslationState =
 
 const NOTICE_MS = 5000;
 const NOTICE_FADE_MS = 160;
+const STRIP_FLASH_MS = 1500;
+const ISOLATED_EVENTS = [
+  'pointerdown',
+  'mousedown',
+  'click',
+  'dblclick',
+  'keydown',
+  'keyup',
+  'keypress',
+];
 const NO_CUES: readonly Cue[] = Object.freeze([]);
 
 const NOTICES: Record<OverlayNotice, { wordClass: string; definition: string }> = {
@@ -30,6 +42,8 @@ const LASTING_STATES = new Set<TranslationState['kind']>(['waiting-for-gesture',
 export class SubtitleOverlay {
   private readonly document: Document;
   private readonly frame: HTMLElement;
+  private readonly box: HTMLElement;
+  private readonly strip: StudyStrip;
   private readonly subtitle: HTMLElement;
   private readonly english: HTMLElement;
   private readonly portuguese: HTMLElement;
@@ -40,8 +54,12 @@ export class SubtitleOverlay {
   private translationState: TranslationState | null = null;
   private noticeTimer: ReturnType<typeof setTimeout> | undefined;
   private translationStateTimer: ReturnType<typeof setTimeout> | undefined;
+  private studyAvailable = false;
+  private stripPinned = false;
+  private stripFocused = false;
+  private stripFlashTimer: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(container: Element) {
+  constructor(container: Element, onCommand: (command: StudyCommand) => void = () => undefined) {
     this.document = container.ownerDocument;
     this.english = this.element('p', 'english');
     this.english.lang = 'en';
@@ -49,12 +67,28 @@ export class SubtitleOverlay {
     this.portuguese.lang = 'pt-BR';
     this.subtitle = this.element('div', 'subtitle', this.english, this.portuguese);
     this.subtitle.hidden = true;
+    this.strip = new StudyStrip(this.document, onCommand);
+    this.box = this.element('div', 'box', this.strip.element, this.subtitle);
+    this.box.hidden = true;
+    for (const type of ISOLATED_EVENTS) {
+      this.box.addEventListener(type, (event) => {
+        event.stopPropagation();
+      });
+    }
+    this.box.addEventListener('focusin', () => {
+      this.stripFocused = true;
+      this.renderBox();
+    });
+    this.box.addEventListener('focusout', (event) => {
+      this.stripFocused = this.box.contains(event.relatedTarget as Node | null);
+      this.renderBox();
+    });
     this.status = this.element('div', 'status');
     this.status.setAttribute('role', 'status');
     this.announcer = this.element('p', 'announcer');
     this.announcer.setAttribute('role', 'status');
     this.announcer.lang = 'pt-BR';
-    this.frame = this.element('div', 'frame', this.subtitle, this.status, this.announcer);
+    this.frame = this.element('div', 'frame', this.box, this.status, this.announcer);
     container.append(this.frame);
   }
 
@@ -70,7 +104,28 @@ export class SubtitleOverlay {
     this.english.textContent = textOf(english);
     this.subtitle.hidden = english.length === 0 && portuguese.length === 0;
     this.renderPortuguese();
+    this.renderBox();
     if (!this.subtitle.hidden) this.hideNotice();
+  }
+
+  setSpeed(speed: number): void {
+    this.strip.setSpeed(speed);
+  }
+
+  setStudyState(available: boolean, paused: boolean): void {
+    if (available === this.studyAvailable && paused === this.stripPinned) return;
+    this.studyAvailable = available;
+    this.stripPinned = paused;
+    this.renderBox();
+  }
+
+  flashStrip(): void {
+    clearTimeout(this.stripFlashTimer);
+    this.stripFlashTimer = setTimeout(() => {
+      this.stripFlashTimer = undefined;
+      this.renderBox();
+    }, STRIP_FLASH_MS);
+    this.renderBox();
   }
 
   showTranslationState(state: TranslationState | null): void {
@@ -112,6 +167,14 @@ export class SubtitleOverlay {
   hideNotice(): void {
     clearTimeout(this.noticeTimer);
     this.status.replaceChildren();
+  }
+
+  private renderBox(): void {
+    const flashing = this.stripFlashTimer !== undefined;
+    const stripShown = this.studyAvailable && (this.stripPinned || this.stripFocused || flashing);
+    this.strip.element.classList.toggle('shown', stripShown);
+    this.box.classList.toggle('study', this.studyAvailable);
+    this.box.hidden = this.subtitle.hidden && !stripShown;
   }
 
   private renderPortuguese(): void {
