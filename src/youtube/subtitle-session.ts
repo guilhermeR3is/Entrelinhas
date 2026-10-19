@@ -1,5 +1,10 @@
-import { type OverlayNotice, SubtitleOverlay } from '../overlay/subtitle-overlay';
+import {
+  type OverlayNotice,
+  SubtitleOverlay,
+  type TranslationState,
+} from '../overlay/subtitle-overlay';
 import type { Cue } from '../subtitles/cue';
+import type { PortugueseTranslation } from '../translation/portuguese-translation';
 import { observeScreenCaptions } from './caption-observer';
 import { watchPlayerControls } from './player-controls';
 import type { CaptionStatus, YouTubeAdapter } from './youtube-adapter';
@@ -25,11 +30,13 @@ export class SubtitleSession {
   private frame = 0;
   private pendingNotice: PendingNotice | null = null;
   private shownNoticeKey: string | null = null;
+  private shownTranslationState: TranslationState | null = null;
 
   constructor(
     container: Element,
     private readonly player: Element,
     private readonly adapter: YouTubeAdapter,
+    private readonly translation: PortugueseTranslation,
   ) {
     this.overlay = new SubtitleOverlay(container);
     this.controlsObserver = watchPlayerControls(player, (liftPx) => {
@@ -56,8 +63,15 @@ export class SubtitleSession {
       return;
     }
 
-    this.overlay.showCues(this.adapter.activeCues(Math.round(timeS * 1000)));
+    const timeMs = Math.round(timeS * 1000);
     const status = this.adapter.status();
+    const english = this.adapter.activeCues(timeMs);
+    const official = status === 'full-track' ? this.adapter.officialPortugueseTrack() : null;
+    const portuguese = official
+      ? official.activeAt(timeMs)
+      : this.translatedCues(status, english, timeMs);
+    this.overlay.showCues(english, portuguese);
+    if (english.length > 0) this.followTranslationState(official ? null : this.translation.state());
     if (status === 'full-track' || status === 'screen') {
       nativeCaptions?.style.setProperty('visibility', 'hidden');
     } else {
@@ -73,6 +87,23 @@ export class SubtitleSession {
     this.controlsObserver.disconnect();
     this.nativeCaptions?.style.removeProperty('visibility');
     this.overlay.hideNotice();
+  }
+
+  private translatedCues(
+    status: CaptionStatus,
+    english: readonly Cue[],
+    timeMs: number,
+  ): readonly Cue[] {
+    if (status === 'screen')
+      return this.translation.lineFor(english.map((cue) => cue.text).join('\n'));
+    const englishTrack = status === 'full-track' ? this.adapter.englishTrack() : null;
+    return englishTrack ? this.translation.cuesFor(englishTrack, timeMs) : NO_CUES;
+  }
+
+  private followTranslationState(state: TranslationState | null): void {
+    if (state === this.shownTranslationState) return;
+    this.shownTranslationState = state;
+    this.overlay.showTranslationState(state);
   }
 
   private followNativeCaptions(): HTMLElement | null {

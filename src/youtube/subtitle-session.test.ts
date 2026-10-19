@@ -1,11 +1,37 @@
+import { IDBFactory } from 'fake-indexeddb';
 import { JSDOM } from 'jsdom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fakeBrowser } from 'wxt/testing/fake-browser';
+import { PortugueseTranslation } from '../translation/portuguese-translation';
+import { serveTranslationCache } from '../translation/translation-service';
+import type { TranslatorApi, TranslatorAvailability } from '../translation/translator-api';
 import { SubtitleSession } from './subtitle-session';
 import { YouTubeAdapter } from './youtube-adapter';
 
 const TRACK_BODY = JSON.stringify({
   events: [{ tStartMs: 1000, dDurationMs: 2000, segs: [{ utf8: 'Hello there' }] }],
 });
+
+const PORTUGUESE_BODY = JSON.stringify({
+  events: [{ tStartMs: 1000, dDurationMs: 2000, segs: [{ utf8: 'Olá, oficial' }] }],
+});
+
+function fakeTranslatorApi(availability: TranslatorAvailability = 'available'): TranslatorApi {
+  return {
+    availability: () => Promise.resolve(availability),
+    create: () =>
+      Promise.resolve({
+        translate: (text: string) => Promise.resolve(`pt:${text}`),
+        destroy: () => undefined,
+      }),
+  };
+}
+
+async function settle() {
+  for (let round = 0; round < 20; round += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
 
 const PLAYER_HTML = `
   <div id="movie_player">
@@ -21,6 +47,7 @@ describe('SubtitleSession', () => {
   let video: HTMLVideoElement;
   let frames: FrameRequestCallback[];
   let session: SubtitleSession | undefined;
+  let translation: PortugueseTranslation;
   const playback = { currentTime: 0, paused: true };
 
   beforeEach(() => {
@@ -46,6 +73,10 @@ describe('SubtitleSession', () => {
 
     page = { location: { href: 'https://www.youtube.com/watch?v=video-a' } as Location };
     adapter = new YouTubeAdapter(page);
+    translation = new PortugueseTranslation(() => session?.render());
+    fakeBrowser.reset();
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    serveTranslationCache();
   });
 
   afterEach(() => {
@@ -67,11 +98,11 @@ describe('SubtitleSession', () => {
   }
 
   function start(): SubtitleSession {
-    session = new SubtitleSession(find('#overlay'), find('#movie_player'), adapter);
+    session = new SubtitleSession(find('#overlay'), find('#movie_player'), adapter, translation);
     return session;
   }
 
-  function receiveTrack(lang = 'en'): void {
+  function receiveTrack(lang = 'en', body = TRACK_BODY): void {
     adapter.receive({
       source: page as unknown as MessageEventSource,
       data: {
@@ -80,9 +111,14 @@ describe('SubtitleSession', () => {
         lang,
         kind: null,
         translatedTo: null,
-        body: TRACK_BODY,
+        body,
       },
     });
+  }
+
+  function portugueseLine(): HTMLElement | null {
+    const line = find('.portuguese');
+    return find('.subtitle').hidden || line.hidden ? null : line;
   }
 
   function playUntil(seconds: number): void {
@@ -224,5 +260,96 @@ describe('SubtitleSession', () => {
     start().stop();
     playUntil(1.5);
     expect(englishText()).toBeNull();
+  });
+
+  describe('with Portuguese', () => {
+    it('translates the English track and shows it under the English line', async () => {
+      await translation.prepare(
+        fakeTranslatorApi(),
+        new EventTarget(),
+        new AbortController().signal,
+      );
+      receiveTrack();
+      start();
+      playback.currentTime = 1.5;
+      session?.render();
+      await settle();
+      expect(portugueseLine()?.textContent).toBe('pt:Hello there');
+      expect(portugueseLine()?.classList.contains('translation-state')).toBe(false);
+    });
+
+    it('prefers the official Portuguese track over the translation', async () => {
+      await translation.prepare(
+        fakeTranslatorApi(),
+        new EventTarget(),
+        new AbortController().signal,
+      );
+      receiveTrack();
+      receiveTrack('pt-BR', PORTUGUESE_BODY);
+      start();
+      playback.currentTime = 1.5;
+      session?.render();
+      await settle();
+      expect(englishText()).toBe('Hello there');
+      expect(portugueseLine()?.textContent).toBe('Olá, oficial');
+    });
+
+    it('asks for the first click under the English line while the model is missing', async () => {
+      void translation.prepare(
+        fakeTranslatorApi('downloadable'),
+        new EventTarget(),
+        new AbortController().signal,
+      );
+      await settle();
+      receiveTrack();
+      start();
+      playback.currentTime = 1.5;
+      session?.render();
+      expect(portugueseLine()?.textContent).toBe('Clique na página para ligar o português.');
+    });
+
+    it('says nothing about the translation when the official track is there', async () => {
+      void translation.prepare(
+        fakeTranslatorApi('downloadable'),
+        new EventTarget(),
+        new AbortController().signal,
+      );
+      await settle();
+      receiveTrack();
+      receiveTrack('pt', JSON.stringify({ events: [] }));
+      start();
+      playback.currentTime = 1.5;
+      session?.render();
+      expect(portugueseLine()).toBeNull();
+    });
+
+    it('translates the line read from the screen', async () => {
+      await translation.prepare(
+        fakeTranslatorApi(),
+        new EventTarget(),
+        new AbortController().signal,
+      );
+      start();
+      find('#ytp-caption-window-container').innerHTML =
+        '<span class="caption-visual-line">so today we</span>';
+      await settle();
+      expect(englishText()).toBe('so today we');
+      expect(portugueseLine()?.textContent).toBe('pt:so today we');
+    });
+
+    it('tells a browser without translation only once per page', async () => {
+      await translation.prepare(null, new EventTarget(), new AbortController().signal);
+      vi.useFakeTimers();
+      receiveTrack();
+      start();
+      playback.currentTime = 1.5;
+      session?.render();
+      expect(portugueseLine()?.textContent).toBe('Este navegador não traduz para o português.');
+
+      vi.advanceTimersByTime(5000);
+      session?.render();
+      vi.useRealTimers();
+      expect(portugueseLine()).toBeNull();
+    });
   });
 });

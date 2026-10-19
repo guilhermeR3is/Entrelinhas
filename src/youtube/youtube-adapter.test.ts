@@ -83,6 +83,55 @@ describe('YouTubeAdapter with the track the player downloaded', () => {
   });
 });
 
+describe('YouTubeAdapter with an official Portuguese track', () => {
+  const PORTUGUESE_BODY = JSON.stringify({
+    events: [{ tStartMs: 1200, dDurationMs: 1500, segs: [{ utf8: 'Olá' }] }],
+  });
+
+  it('keeps the English track and adds the Portuguese one the player downloaded later', () => {
+    const { adapter, send } = createPage();
+    send({});
+    send({ lang: 'pt-BR', body: PORTUGUESE_BODY });
+
+    expect(adapter.status()).toBe('full-track');
+    expect(textsAt(adapter, 1500)).toEqual(['Hello there']);
+    expect(
+      adapter
+        .officialPortugueseTrack()
+        ?.activeAt(1500)
+        .map((cue) => cue.text),
+    ).toEqual(['Olá']);
+  });
+
+  it('also takes the Portuguese track when it arrives before the English one', () => {
+    const { adapter, send } = createPage();
+    send({ lang: 'pt', body: PORTUGUESE_BODY });
+    expect(adapter.status()).toBe('other-language');
+
+    send({});
+    expect(adapter.status()).toBe('full-track');
+    expect(adapter.officialPortugueseTrack()).not.toBeNull();
+  });
+
+  it('does not take a track YouTube translated by machine as official', () => {
+    const { adapter, send } = createPage();
+    send({});
+    send({ lang: 'en', translatedTo: 'pt', body: PORTUGUESE_BODY });
+    expect(adapter.officialPortugueseTrack()).toBeNull();
+  });
+
+  it('hands over the English track only for the current video', () => {
+    const { adapter, send, goTo } = createPage();
+    send({});
+    send({ lang: 'pt', body: PORTUGUESE_BODY });
+    expect(adapter.englishTrack()?.cues).toHaveLength(2);
+
+    goTo('https://www.youtube.com/watch?v=video-b');
+    expect(adapter.englishTrack()).toBeNull();
+    expect(adapter.officialPortugueseTrack()).toBeNull();
+  });
+});
+
 describe('YouTubeAdapter when the track cannot be used', () => {
   it('falls back to the text on screen when the English track is unreadable', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);

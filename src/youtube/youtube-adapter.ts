@@ -8,13 +8,16 @@ export type CaptionStatus = 'waiting' | 'full-track' | 'screen' | 'other-languag
 
 type CaptionPage = Pick<Window, 'location'>;
 type CapturedTrack = { videoId: string; lang: string; track: SubtitleTrack | null };
+type CapturedLanguage = { videoId: string; lang: string };
 type ScreenLine = { videoId: string; cues: readonly Cue[] };
 
 const NO_CUES: readonly Cue[] = Object.freeze([]);
 const UNKNOWN_LANGUAGE = 'und';
 
 export class YouTubeAdapter {
-  private captured: CapturedTrack | null = null;
+  private english: CapturedTrack | null = null;
+  private portuguese: CapturedTrack | null = null;
+  private latest: CapturedLanguage | null = null;
   private screenLine: ScreenLine | null = null;
   private screenCueId = 0;
 
@@ -25,9 +28,14 @@ export class YouTubeAdapter {
     const message = readCaptionTrackMessage(event.data);
     if (!message) return;
 
+    const { videoId } = message;
     const lang = message.translatedTo ?? message.lang ?? UNKNOWN_LANGUAGE;
-    const track = isEnglish(lang) ? readTrack(message.body, lang) : null;
-    this.captured = { videoId: message.videoId, lang, track };
+    if (isEnglish(lang)) {
+      this.english = { videoId, lang, track: readTrack(message.body, lang) };
+    } else if (isPortuguese(lang) && message.translatedTo === null) {
+      this.portuguese = { videoId, lang, track: readTrack(message.body, lang) };
+    }
+    this.latest = { videoId, lang };
   }
 
   showScreenText(text: string): void {
@@ -45,17 +53,26 @@ export class YouTubeAdapter {
 
   status(): CaptionStatus {
     const videoId = this.currentVideoId();
-    const captured = this.captured?.videoId === videoId ? this.captured : null;
-    if (captured?.track) return 'full-track';
-    if (captured && !isEnglish(captured.lang)) return 'other-language';
+    const english = this.english?.videoId === videoId ? this.english : null;
+    if (english?.track) return 'full-track';
+    const latest = this.latest?.videoId === videoId ? this.latest : null;
+    if (latest && !isEnglish(latest.lang)) return 'other-language';
     if (this.screenLine?.videoId === videoId && this.screenLine.cues.length > 0) return 'screen';
-    return captured ? 'unreadable' : 'waiting';
+    return english ? 'unreadable' : 'waiting';
+  }
+
+  englishTrack(): SubtitleTrack | null {
+    return this.trackFor(this.english);
+  }
+
+  officialPortugueseTrack(): SubtitleTrack | null {
+    return this.trackFor(this.portuguese);
   }
 
   activeCues(timeMs: number): readonly Cue[] {
     switch (this.status()) {
       case 'full-track':
-        return this.captured?.track?.activeAt(timeMs) ?? NO_CUES;
+        return this.englishTrack()?.activeAt(timeMs) ?? NO_CUES;
       case 'screen':
         return this.screenLine?.cues ?? NO_CUES;
       default:
@@ -67,10 +84,18 @@ export class YouTubeAdapter {
     const url = new URL(this.page.location.href);
     return url.pathname === '/watch' ? url.searchParams.get('v') : null;
   }
+
+  private trackFor(captured: CapturedTrack | null): SubtitleTrack | null {
+    return captured?.videoId === this.currentVideoId() ? captured.track : null;
+  }
 }
 
 function isEnglish(lang: string): boolean {
   return lang === 'en' || lang.startsWith('en-');
+}
+
+function isPortuguese(lang: string): boolean {
+  return lang === 'pt' || lang.startsWith('pt-');
 }
 
 function readTrack(body: string, lang: string): SubtitleTrack | null {

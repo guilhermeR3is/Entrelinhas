@@ -2,6 +2,8 @@ import { createShadowRootUi } from 'wxt/utils/content-script-ui/shadow-root';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import '../overlay/subtitle-overlay.css';
 import { loadSubtitleFont } from '../overlay/subtitle-font';
+import { PortugueseTranslation } from '../translation/portuguese-translation';
+import { findTranslatorApi } from '../translation/translator-api';
 import { SubtitleSession } from '../youtube/subtitle-session';
 import { YouTubeAdapter } from '../youtube/youtube-adapter';
 
@@ -15,6 +17,8 @@ export default defineContentScript({
     const adapter = new YouTubeAdapter(window);
     let session: SubtitleSession | undefined;
     let fontLoaded = false;
+    const translation = new PortugueseTranslation(() => session?.render());
+    void translation.prepare(findTranslatorApi(globalThis), window, ctx.signal);
     ctx.addEventListener(window, 'message', (event) => {
       adapter.receive(event);
       session?.render();
@@ -29,7 +33,7 @@ export default defineContentScript({
         if (!player) return;
         if (!fontLoaded) loadSubtitleFont(document.fonts);
         fontLoaded = true;
-        session = new SubtitleSession(container, player, adapter);
+        session = new SubtitleSession(container, player, adapter, translation);
       },
       onRemove: () => {
         session?.stop();
