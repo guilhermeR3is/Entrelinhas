@@ -13,6 +13,13 @@ class FakeVideo extends EventTarget {
     this.rate = rate;
     setTimeout(() => this.dispatchEvent(new Event('ratechange')));
   }
+  loadNextVideo(): void {
+    this.rate = 1;
+    setTimeout(() => {
+      this.dispatchEvent(new Event('emptied'));
+      this.dispatchEvent(new Event('loadstart'));
+    });
+  }
 }
 
 function settle(): Promise<void> {
@@ -87,6 +94,26 @@ describe('PlaybackSpeed', () => {
     expect(video.playbackRate).toBe(0.75);
     expect(speed.speed).toBe(0.75);
     expect(onChange).toHaveBeenCalledOnce();
+  });
+
+  it('puts the chosen speed back when the video loads the next one without a ratechange', async () => {
+    const speed = createSpeed();
+    speed.step(-5);
+    await settle();
+    video.loadNextVideo();
+    await settle();
+    expect(video.playbackRate).toBe(0.75);
+    expect(speed.speed).toBe(0.75);
+  });
+
+  it('leaves a new video at normal speed while held', async () => {
+    const speed = createSpeed();
+    speed.step(-5);
+    speed.setHeld(true);
+    await settle();
+    video.loadNextVideo();
+    await settle();
+    expect(video.playbackRate).toBe(1);
   });
 
   it('keeps the speed the person picked in the player menu', async () => {

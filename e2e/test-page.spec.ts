@@ -133,3 +133,35 @@ test('the study strip shows the speed and its buttons change it', async ({ page 
   await expect(strip.locator('.speed')).toHaveText('0,95x');
   expect(await page.evaluate(() => document.querySelector('video')?.playbackRate)).toBe(0.95);
 });
+
+test('pauses at the end of each sentence while "Pausar no fim" is on', async ({ page }) => {
+  const video = () =>
+    page.evaluate(() => {
+      const element = document.querySelector('video');
+      return { paused: element?.paused, timeMs: Math.round((element?.currentTime ?? 0) * 1000) };
+    });
+  const english = page.locator('.english');
+  const button = page.getByRole('button', { name: 'Pausar no fim' });
+  await page.keyboard.press('p');
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+
+  await page.evaluate(() => document.querySelector('video')?.play());
+  await expect.poll(async () => (await video()).paused, { timeout: 5000 }).toBe(true);
+  const firstStop = await video();
+  expect(firstStop.timeMs).toBeGreaterThanOrEqual(2000);
+  expect(firstStop.timeMs).toBeLessThan(2100);
+  await expect(english).toHaveText('Hello, this is the test page.');
+
+  await page.evaluate(() => document.querySelector('video')?.play());
+  await expect.poll(async () => (await video()).paused, { timeout: 5000 }).toBe(true);
+  const secondStop = await video();
+  expect(secondStop.timeMs).toBeGreaterThanOrEqual(4100);
+  expect(secondStop.timeMs).toBeLessThan(4200);
+  await expect(english).toHaveText('Cues can touch end to end.');
+
+  await button.click();
+  await expect(button).toHaveAttribute('aria-pressed', 'false');
+  await page.evaluate(() => document.querySelector('video')?.play());
+  await page.waitForTimeout(1500);
+  expect((await video()).paused).toBe(false);
+});

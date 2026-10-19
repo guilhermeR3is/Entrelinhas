@@ -58,6 +58,12 @@ describe('listenForStudyKeys', () => {
     expect(pageKeys).toEqual([]);
   });
 
+  it('turns P into the auto-pause switch', () => {
+    press('#player', 'p');
+    expect(commands).toEqual(['auto-pause']);
+    expect(pageKeys).toEqual([]);
+  });
+
   it('lets every other key reach the page', () => {
     press('#player', 'k');
     press('#player', '>', { shiftKey: true });

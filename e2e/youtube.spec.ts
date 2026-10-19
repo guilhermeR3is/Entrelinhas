@@ -255,3 +255,23 @@ test('keeps the study strip away during an ad', async ({ page }) => {
   await page.locator(ENGLISH).hover();
   await expect(page.locator(STRIP)).toBeVisible();
 });
+
+test('P pauses the video where the caption ends and keeps it on screen', async ({ page }) => {
+  await open(page, 'video-a');
+  await page.keyboard.press('p');
+  await expect(page.getByRole('button', { name: 'Pausar no fim' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await play(page);
+  await expect
+    .poll(() => page.evaluate(() => document.querySelector('video')?.paused), { timeout: 6000 })
+    .toBe(true);
+  const stoppedMs = await page.evaluate(() =>
+    Math.round((document.querySelector('video')?.currentTime ?? 0) * 1000),
+  );
+  expect(stoppedMs).toBeGreaterThanOrEqual(3000);
+  expect(stoppedMs).toBeLessThan(3100);
+  await expect(page.locator(ENGLISH)).toHaveText('First line of video A');
+  expect(await keysSeenByPage(page)).toEqual([]);
+});

@@ -3,6 +3,7 @@
   --note: #a3a8b0;
   --backing: rgb(23 25 30 / 0.86);
   --rule: #2e3138;
+  --accent: #8ea4f0;
 
   position: absolute;
   inset: 0;
@@ -113,6 +114,14 @@
 .strip button[aria-disabled='true'] {
   color: var(--note);
   cursor: default;
+}
+
+.strip .separated {
+  margin-inline-start: 0.5em;
+}
+
+.strip button[aria-pressed='true'] {
+  color: var(--accent);
 }
 
 .strip kbd {

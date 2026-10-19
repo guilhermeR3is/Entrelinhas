@@ -11,6 +11,7 @@ export class StudyStrip {
   readonly element: HTMLElement;
   private readonly slower: HTMLButtonElement;
   private readonly faster: HTMLButtonElement;
+  private readonly autoPause: HTMLButtonElement;
   private readonly speedValue: HTMLOutputElement;
 
   constructor(
@@ -23,6 +24,10 @@ export class StudyStrip {
     this.faster = this.button('+', 'X', 'Mais rápido', () => {
       onCommand('faster');
     });
+    this.autoPause = this.button('Pausar no fim', 'P', null, () => {
+      onCommand('auto-pause');
+    });
+    this.autoPause.classList.add('separated');
     this.speedValue = document.createElement('output');
     this.speedValue.className = 'speed';
     this.speedValue.setAttribute('aria-label', 'Velocidade');
@@ -31,7 +36,7 @@ export class StudyStrip {
     this.element.className = 'strip';
     this.element.setAttribute('role', 'group');
     this.element.setAttribute('aria-label', 'Controles de estudo');
-    this.element.append(this.slower, this.speedValue, this.faster);
+    this.element.append(this.slower, this.speedValue, this.faster, this.autoPause);
     this.element.addEventListener('mousedown', (event) => {
       event.preventDefault();
     });
@@ -44,19 +49,24 @@ export class StudyStrip {
     this.faster.setAttribute('aria-disabled', String(speed >= MAX_SPEED));
   }
 
+  setAutoPause(enabled: boolean): void {
+    this.autoPause.setAttribute('aria-pressed', String(enabled));
+  }
+
   private button(
-    symbol: string,
+    text: string,
     key: string,
-    label: string,
+    label: string | null,
     onPress: () => void,
   ): HTMLButtonElement {
     const button = this.document.createElement('button');
     button.type = 'button';
-    button.setAttribute('aria-label', label);
+    if (label) button.setAttribute('aria-label', label);
     button.setAttribute('aria-keyshortcuts', key);
     const hint = this.document.createElement('kbd');
     hint.textContent = key;
-    button.append(symbol, hint);
+    hint.setAttribute('aria-hidden', 'true');
+    button.append(text, hint);
     button.addEventListener('click', () => {
       if (button.getAttribute('aria-disabled') !== 'true') onPress();
     });

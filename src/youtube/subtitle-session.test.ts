@@ -281,6 +281,39 @@ describe('SubtitleSession', () => {
     expect(find('.strip').classList.contains('shown')).toBe(false);
   });
 
+  describe('pausing at the end', () => {
+    beforeEach(() => {
+      Object.defineProperty(video, 'pause', {
+        value: () => {
+          playback.paused = true;
+        },
+      });
+    });
+
+    it('pauses where the sentence ends and keeps it on screen', () => {
+      receiveTrack();
+      start();
+      session?.handleCommand('auto-pause');
+      playUntil(3);
+      expect(playback.paused).toBe(true);
+      session?.render();
+      expect(englishText()).toBe('Hello there');
+    });
+
+    it('keeps the line read from the screen when the next one arrives', async () => {
+      start();
+      session?.handleCommand('auto-pause');
+      const captions = find('#ytp-caption-window-container');
+      playback.paused = false;
+      captions.innerHTML = '<span class="caption-visual-line">First line</span>';
+      await new Promise((resolve) => setTimeout(resolve));
+      captions.innerHTML = '<span class="caption-visual-line">Second line</span>';
+      await new Promise((resolve) => setTimeout(resolve));
+      expect(playback.paused).toBe(true);
+      expect(englishText()).toBe('First line');
+    });
+  });
+
   it('stays quiet outside a watch page', () => {
     page.location.href = 'https://www.youtube.com/';
     start();

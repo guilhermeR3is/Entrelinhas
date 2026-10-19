@@ -3,7 +3,7 @@ import {
   SubtitleOverlay,
   type TranslationState,
 } from '../overlay/subtitle-overlay';
-import { PlaybackSpeed } from '../study/playback-speed';
+import { StudyControls } from '../study/study-controls';
 import type { StudyCommand } from '../study/study-keys';
 import type { Cue } from '../subtitles/cue';
 import type { PortugueseTranslation } from '../translation/portuguese-translation';
@@ -30,8 +30,9 @@ export class SubtitleSession {
   private readonly listeners = new AbortController();
   private readonly controlsObserver: MutationObserver;
   private readonly personChangedSpeed: () => boolean;
-  private speed: PlaybackSpeed | undefined;
-  private speedVideo: HTMLVideoElement | null = null;
+  private controls: StudyControls | undefined;
+  private controlsVideo: HTMLVideoElement | null = null;
+  private shownEnglish: readonly Cue[] = NO_CUES;
   private nativeCaptions: HTMLElement | null = null;
   private screenObserver: MutationObserver | undefined;
   private frame = 0;
@@ -68,7 +69,8 @@ export class SubtitleSession {
     const timeS = video?.currentTime ?? 0;
     const nativeCaptions = this.followNativeCaptions();
     const isAd = this.player.classList.contains(AD_CLASS);
-    this.followSpeed(video)?.setHeld(isAd);
+    const controls = this.followControls(video);
+    controls?.setHeld(isAd);
     if (isAd) {
       this.overlay.setStudyState(false, false);
       this.overlay.showCues(NO_CUES);
@@ -78,10 +80,18 @@ export class SubtitleSession {
       return;
     }
 
-    const timeMs = Math.round(timeS * 1000);
     const status = this.adapter.status();
     this.overlay.setStudyState(STUDY_STATUSES.has(status), video?.paused ?? true);
-    const english = this.adapter.activeCues(timeMs);
+    const englishTrack = status === 'full-track' ? this.adapter.englishTrack() : null;
+    const playheadMs = Math.round(timeS * 1000);
+    if (englishTrack) controls?.followSentences(englishTrack, playheadMs);
+    const timeMs = controls?.displayTimeMs(playheadMs) ?? playheadMs;
+    let english = this.adapter.activeCues(timeMs);
+    if (status === 'screen') {
+      controls?.followLine(english.map((cue) => cue.text).join('\n'));
+      if (controls?.isFrozen) english = this.shownEnglish;
+    }
+    this.shownEnglish = english;
     const official = status === 'full-track' ? this.adapter.officialPortugueseTrack() : null;
     const portuguese = official
       ? official.activeAt(timeMs)
@@ -97,15 +107,14 @@ export class SubtitleSession {
   };
 
   handleCommand(command: StudyCommand): boolean {
-    if (!this.speed || this.player.classList.contains(AD_CLASS)) return false;
-    this.speed.step(command === 'faster' ? 1 : -1);
-    this.overlay.flashStrip();
+    if (!this.controls || this.player.classList.contains(AD_CLASS)) return false;
+    this.controls.handle(command);
     return true;
   }
 
   stop(): void {
     this.listeners.abort();
-    this.speed?.stop();
+    this.controls?.stop();
     cancelAnimationFrame(this.frame);
     this.screenObserver?.disconnect();
     this.controlsObserver.disconnect();
@@ -130,20 +139,14 @@ export class SubtitleSession {
     this.overlay.showTranslationState(state);
   }
 
-  private followSpeed(video: HTMLVideoElement | null): PlaybackSpeed | undefined {
-    if (video === this.speedVideo) return this.speed;
-    this.speed?.stop();
-    this.speedVideo = video;
-    this.speed = video
-      ? new PlaybackSpeed(video, {
-          personChangedSpeed: this.personChangedSpeed,
-          onChange: (speed) => {
-            this.overlay.setSpeed(speed);
-          },
-        })
+  private followControls(video: HTMLVideoElement | null): StudyControls | undefined {
+    if (video === this.controlsVideo) return this.controls;
+    this.controls?.stop();
+    this.controlsVideo = video;
+    this.controls = video
+      ? new StudyControls(video, this.overlay, this.personChangedSpeed)
       : undefined;
-    if (this.speed) this.overlay.setSpeed(this.speed.speed);
-    return this.speed;
+    return this.controls;
   }
 
   private followNativeCaptions(): HTMLElement | null {

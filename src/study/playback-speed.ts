@@ -4,6 +4,7 @@ const STEPS_PER_UNIT = 20;
 const RESET_LIMIT = 3;
 const RESET_WINDOW_MS = 2000;
 const NORMAL_SPEED = 1;
+const LOAD_EVENTS = ['emptied', 'loadstart'];
 
 type SpeedTarget = EventTarget & { playbackRate: number };
 
@@ -35,6 +36,9 @@ export class PlaybackSpeed {
     this.chosen = video.playbackRate;
     this.now = options.now ?? (() => performance.now());
     video.addEventListener('ratechange', this.follow, { signal: this.listeners.signal });
+    for (const type of LOAD_EVENTS) {
+      video.addEventListener(type, this.restore, { signal: this.listeners.signal });
+    }
   }
 
   get speed(): number {
@@ -55,13 +59,17 @@ export class PlaybackSpeed {
   setHeld(held: boolean): void {
     if (held === this.held) return;
     this.held = held;
-    const speed = held ? NORMAL_SPEED : this.chosen;
-    if (this.video.playbackRate !== speed) this.video.playbackRate = speed;
+    this.restore();
   }
 
   stop(): void {
     this.listeners.abort();
   }
+
+  private readonly restore = (): void => {
+    const speed = this.held ? NORMAL_SPEED : this.chosen;
+    if (this.video.playbackRate !== speed) this.video.playbackRate = speed;
+  };
 
   private readonly follow = (): void => {
     const actual = this.video.playbackRate;

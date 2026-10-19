@@ -83,6 +83,15 @@
       const video = player.querySelector('video');
       const keysSeen = [];
       let rememberedSpeed = 1;
+      let reloading = false;
+
+      window.addEventListener(
+        'ratechange',
+        (event) => {
+          if (reloading) event.stopImmediatePropagation();
+        },
+        true,
+      );
 
       document.addEventListener('keydown', (event) => keysSeen.push(event.key));
       document.querySelector('.ytp-speed-option').addEventListener('click', (event) => {
@@ -127,6 +136,9 @@
         },
         openVideo: (videoId) => {
           history.pushState({}, '', `/watch?v=${videoId}`);
+          reloading = true;
+          video.addEventListener('loadstart', () => (reloading = false), { once: true });
+          video.load();
           loadCaptions();
           setTimeout(() => {
             video.playbackRate = rememberedSpeed;

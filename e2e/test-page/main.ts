@@ -1,6 +1,6 @@
 import overlayCss from '../../src/overlay/subtitle-overlay.css?inline';
 import { SubtitleOverlay, type TranslationState } from '../../src/overlay/subtitle-overlay';
-import { PlaybackSpeed } from '../../src/study/playback-speed';
+import { StudyControls } from '../../src/study/study-controls';
 import { listenForStudyKeys, type StudyCommand } from '../../src/study/study-keys';
 import type { Cue } from '../../src/subtitles/cue';
 import { SubtitleTrack } from '../../src/subtitles/subtitle-track';
@@ -32,25 +32,13 @@ style.textContent = overlayCss;
 const overlayContainer = document.createElement('div');
 shadow.append(style, overlayContainer);
 player.append(overlayHost);
-const stepSpeed = (command: StudyCommand): boolean => {
-  speed.step(command === 'faster' ? 1 : -1);
-  overlay.flashStrip();
+const handleCommand = (command: StudyCommand): boolean => {
+  controls.handle(command);
   return true;
 };
-const overlay = new SubtitleOverlay(overlayContainer, stepSpeed);
-const speed = new PlaybackSpeed(video, {
-  personChangedSpeed: () => false,
-  onChange: (newSpeed) => {
-    overlay.setSpeed(newSpeed);
-  },
-});
-const followPause = () => {
-  overlay.setStudyState(true, video.paused);
-};
-video.addEventListener('play', followPause);
-video.addEventListener('pause', followPause);
-followPause();
-listenForStudyKeys(window, stepSpeed, new AbortController().signal);
+const overlay = new SubtitleOverlay(overlayContainer, handleCommand);
+const controls = new StudyControls(video, overlay, () => false);
+listenForStudyKeys(window, handleCommand, new AbortController().signal);
 
 const TRANSLATION_STATES: Record<string, TranslationState> = {
   'waiting-for-gesture': { kind: 'waiting-for-gesture' },
@@ -68,8 +56,11 @@ const portugueseCuesAt = (timeMs: number) =>
 let shownCues: readonly Cue[] = [];
 const renderActiveCues = (): void => {
   const timeMs = Math.round(video.currentTime * 1000);
+  controls.followSentences(subtitleTrack, timeMs);
+  const shownMs = controls.displayTimeMs(timeMs);
+  overlay.showCues(subtitleTrack.activeAt(shownMs), portugueseCuesAt(shownMs));
+  overlay.setStudyState(true, video.paused);
   const activeCues = subtitleTrack.activeAt(timeMs);
-  overlay.showCues(activeCues, portugueseCuesAt(timeMs));
   if (activeCues === shownCues) return;
   shownCues = activeCues;
   activeCueList.replaceChildren(
@@ -80,7 +71,12 @@ const renderActiveCues = (): void => {
     }),
   );
 };
-video.addEventListener('timeupdate', renderActiveCues);
+const renderEveryFrame = (): void => {
+  renderActiveCues();
+  if (!video.paused) requestAnimationFrame(renderEveryFrame);
+};
+video.addEventListener('playing', renderEveryFrame);
+video.addEventListener('pause', renderActiveCues);
 video.addEventListener('seeked', renderActiveCues);
 
 if (trackElement.readyState !== HTMLTrackElement.LOADED) {
