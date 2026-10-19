@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { chromium, test as base, type BrowserContext, type Page } from '@playwright/test';
 
-const extensionPath = path.resolve('.output/chrome-mv3');
+const extensionPath = path.resolve('.output/chrome-mv3-e2e');
 
 function unpackedExtensionId(directory: string): string {
   const hash = createHash('sha256').update(directory).digest('hex').slice(0, 32);

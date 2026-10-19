@@ -75,11 +75,14 @@
         document.documentElement.requestFullscreen();
       });
 
-      function loadCaptions() {
+      function loadCaptions(lang = 'en') {
         const videoId = new URL(location.href).searchParams.get('v');
         if (videoId === 'no-captions') return;
         const request = new XMLHttpRequest();
-        request.open('GET', `/api/timedtext?v=${videoId}&lang=en&fmt=json3&pot=local-test-token`);
+        request.open(
+          'GET',
+          `/api/timedtext?v=${videoId}&lang=${lang}&fmt=json3&pot=local-test-token`,
+        );
         request.send();
       }
 
@@ -95,6 +98,13 @@
           const fresh = document.createElement('div');
           fresh.id = 'ytp-caption-window-container';
           document.getElementById('ytp-caption-window-container').replaceWith(fresh);
+        },
+        loadPortuguese: () => loadCaptions('pt-BR'),
+        showScreenCaption: (text) => {
+          const line = document.createElement('span');
+          line.className = 'caption-visual-line';
+          line.textContent = text;
+          document.getElementById('ytp-caption-window-container').replaceChildren(line);
         },
         openVideo: (videoId) => {
           history.pushState({}, '', `/watch?v=${videoId}`);

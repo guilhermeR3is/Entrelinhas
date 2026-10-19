@@ -1,4 +1,5 @@
 import { createShadowRootUi } from 'wxt/utils/content-script-ui/shadow-root';
+import { fakeTranslatorApi } from '../../e2e/fake-translator';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import '../overlay/subtitle-overlay.css';
 import { loadSubtitleFont } from '../overlay/subtitle-font';
@@ -18,7 +19,9 @@ export default defineContentScript({
     let session: SubtitleSession | undefined;
     let fontLoaded = false;
     const translation = new PortugueseTranslation(() => session?.render());
-    void translation.prepare(findTranslatorApi(globalThis), window, ctx.signal);
+    const translatorApi =
+      import.meta.env.MODE === 'e2e' ? fakeTranslatorApi(window) : findTranslatorApi(globalThis);
+    void translation.prepare(translatorApi, window, ctx.signal);
     ctx.addEventListener(window, 'message', (event) => {
       adapter.receive(event);
       session?.render();

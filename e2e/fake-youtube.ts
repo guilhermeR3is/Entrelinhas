@@ -11,9 +11,13 @@ const CAPTIONS: Record<string, [number, number, string][]> = {
   ],
   'video-b': [[0, 600_000, 'Only line of video B']],
 };
+const PORTUGUESE_CAPTIONS: Record<string, [number, number, string][]> = {
+  'video-a': [[0, 600_000, 'Legenda oficial do vídeo A']],
+};
 
-function json3Track(videoId: string): string {
-  const events = (CAPTIONS[videoId] ?? []).map(([start, end, text]) => ({
+function json3Track(videoId: string, lang: string | null): string {
+  const captions = lang?.startsWith('pt') ? PORTUGUESE_CAPTIONS : CAPTIONS;
+  const events = (captions[videoId] ?? []).map(([start, end, text]) => ({
     tStartMs: start,
     dDurationMs: end - start,
     segs: [{ utf8: text }],
@@ -21,7 +25,11 @@ function json3Track(videoId: string): string {
   return JSON.stringify({ wireMagic: 'pb3', events });
 }
 
-export async function openFakeYouTube(page: Page, videoId: string): Promise<string[]> {
+export async function openFakeYouTube(
+  page: Page,
+  videoId: string,
+  fakeTranslator?: string,
+): Promise<string[]> {
   const leakedRequests: string[] = [];
   await page.context().route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -38,13 +46,16 @@ export async function openFakeYouTube(page: Page, videoId: string): Promise<stri
       case '/api/timedtext':
         return route.fulfill({
           contentType: 'application/json',
-          body: json3Track(url.searchParams.get('v') ?? ''),
+          body: json3Track(url.searchParams.get('v') ?? '', url.searchParams.get('lang')),
         });
       default:
         leakedRequests.push(url.href);
         return route.abort();
     }
   });
-  await page.goto(`https://www.youtube.com/watch?v=${videoId}`);
+  const watchUrl = new URL('https://www.youtube.com/watch');
+  watchUrl.searchParams.set('v', videoId);
+  if (fakeTranslator) watchUrl.searchParams.set('fake-translator', fakeTranslator);
+  await page.goto(watchUrl.href);
   return leakedRequests;
 }
