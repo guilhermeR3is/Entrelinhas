@@ -83,3 +83,34 @@ test('the page follows the video while it plays', async ({ page }) => {
   await expect(activeCues).toHaveText(['Hello, this is the test page.']);
   await expect(activeCues).toHaveText(['Cues can touch end to end.']);
 });
+
+test('the overlay shows English on top and Portuguese below it', async ({ page }) => {
+  await seekAndReadCues(page, 0.75);
+  const english = page.locator('#player .english');
+  const portuguese = page.locator('#player .portuguese');
+  await expect(english).toHaveText('Hello, this is the test page.');
+  await expect(portuguese).toHaveText('Olá, esta é a página de teste.');
+  await expect(english).toHaveAttribute('lang', 'en');
+  await expect(portuguese).toHaveAttribute('lang', 'pt-BR');
+
+  const englishBox = await english.boundingBox();
+  const portugueseBox = await portuguese.boundingBox();
+  expect(portugueseBox?.y).toBeGreaterThanOrEqual((englishBox?.y ?? 0) + (englishBox?.height ?? 0));
+
+  const [englishSize, portugueseSize] = await Promise.all(
+    [english, portuguese].map((line) =>
+      line.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
+    ),
+  );
+  expect(portugueseSize).toBeCloseTo((englishSize ?? 0) * 0.8, 1);
+});
+
+test('the overlay joins overlapping English cues above a single Portuguese cue', async ({
+  page,
+}) => {
+  await seekAndReadCues(page, 5.5);
+  await expect(page.locator('#player .english')).toHaveText(`${LONG_CUE}\nFirst overlap`);
+  await expect(page.locator('#player .portuguese')).toHaveText(
+    'Uma fala longa e duas curtas\ndentro dela.',
+  );
+});

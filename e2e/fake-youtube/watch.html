@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fake YouTube</title>
+    <style>
+      html {
+        font-size: 10px;
+      }
+      body {
+        margin: 0;
+        background: #0f0f0f;
+      }
+      #movie_player {
+        position: relative;
+        width: 854px;
+        height: 480px;
+        overflow: hidden;
+      }
+      .html5-video-container {
+        position: absolute;
+        inset: 0;
+        z-index: 10;
+      }
+      video {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      #ytp-caption-window-container {
+        position: absolute;
+        inset: 0;
+      }
+      .ytp-chrome-bottom {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 59;
+        height: 59px;
+        background: rgb(0 0 0 / 0.5);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="movie_player" class="html5-video-player playing-mode">
+      <div class="html5-video-container">
+        <video src="/clock.webm" muted loop preload="auto"></video>
+      </div>
+      <div id="ytp-caption-window-container"></div>
+      <div class="ytp-chrome-bottom"></div>
+    </div>
+    <script>
+      const player = document.getElementById('movie_player');
+
+      function loadCaptions() {
+        const videoId = new URL(location.href).searchParams.get('v');
+        if (videoId === 'no-captions') return;
+        const request = new XMLHttpRequest();
+        request.open('GET', `/api/timedtext?v=${videoId}&lang=en&fmt=json3&pot=local-test-token`);
+        request.send();
+      }
+
+      window.fakePlayer = {
+        startAd: () => player.classList.add('ad-showing'),
+        endAd: () => player.classList.remove('ad-showing'),
+        hideControls: () => player.classList.add('ytp-autohide'),
+        showControls: () => player.classList.remove('ytp-autohide'),
+        replaceCaptionContainer: () => {
+          const fresh = document.createElement('div');
+          fresh.id = 'ytp-caption-window-container';
+          document.getElementById('ytp-caption-window-container').replaceWith(fresh);
+        },
+        openVideo: (videoId) => {
+          history.pushState({}, '', `/watch?v=${videoId}`);
+          loadCaptions();
+        },
+      };
+
+      loadCaptions();
+    </script>
+  </body>
+</html>
