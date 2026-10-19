@@ -66,21 +66,54 @@ test('follows the video while it plays', async ({ page }) => {
   await expect(page.locator(ENGLISH)).toHaveText('Second line of video A');
 });
 
+function gapAboveControls(page: Page): Promise<number | null> {
+  return page.evaluate((overlay) => {
+    const subtitle = document
+      .querySelector(overlay)
+      ?.shadowRoot?.querySelector('.subtitle')
+      ?.getBoundingClientRect();
+    const controls = document.querySelector('.ytp-chrome-bottom')?.getBoundingClientRect();
+    return subtitle && controls ? Math.round(controls.top - subtitle.bottom) : null;
+  }, OVERLAY);
+}
+
+function englishFontSizePx(page: Page): Promise<number> {
+  return page
+    .locator(ENGLISH)
+    .evaluate((english) => Number.parseFloat(getComputedStyle(english).fontSize));
+}
+
 test('sits above the player controls and goes back down when they hide', async ({ page }) => {
   await open(page, 'video-a');
-  const gapAboveControls = () =>
-    page.evaluate((overlay) => {
-      const subtitle = document
-        .querySelector(overlay)
-        ?.shadowRoot?.querySelector('.subtitle')
-        ?.getBoundingClientRect();
-      const controls = document.querySelector('.ytp-chrome-bottom')?.getBoundingClientRect();
-      return subtitle && controls ? Math.round(controls.top - subtitle.bottom) : null;
-    }, OVERLAY);
-
-  await expect.poll(gapAboveControls).toBe(8);
+  await expect.poll(() => gapAboveControls(page)).toBe(8);
   await fakePlayer(page, 'hideControls');
-  await expect.poll(gapAboveControls).toBe(-40);
+  await expect.poll(() => gapAboveControls(page)).toBe(-40);
+});
+
+test('grows with the player in fullscreen and shrinks back when it ends', async ({ page }) => {
+  await open(page, 'video-a');
+  await expect.poll(() => englishFontSizePx(page)).toBe(20);
+
+  await page.locator('.ytp-fullscreen-button').click();
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement?.tagName)).toBe('HTML');
+  const playerHeight = await page.evaluate(() => window.innerHeight);
+  await expect.poll(() => englishFontSizePx(page)).toBeCloseTo(playerHeight * 0.04);
+  await expect(page.locator(ENGLISH)).toHaveText('First line of video A');
+  await expect.poll(() => gapAboveControls(page)).toBe(8);
+
+  await page.evaluate(() => document.exitFullscreen());
+  await expect.poll(() => englishFontSizePx(page)).toBe(20);
+});
+
+test('follows the player into theater mode', async ({ page }) => {
+  await open(page, 'video-a');
+  await fakePlayer(page, 'enterTheaterMode');
+  await expect.poll(() => englishFontSizePx(page)).toBeCloseTo(631 * 0.04);
+  await expect(page.locator(ENGLISH)).toHaveText('First line of video A');
+  await expect.poll(() => gapAboveControls(page)).toBe(8);
+
+  await play(page);
+  await expect(page.locator(ENGLISH)).toHaveText('Second line of video A');
 });
 
 test('stays out of the way while an ad plays', async ({ page }) => {

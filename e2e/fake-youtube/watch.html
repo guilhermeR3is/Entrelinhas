@@ -40,18 +40,40 @@
         height: 59px;
         background: rgb(0 0 0 / 0.5);
       }
+      .ytp-fullscreen-button {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+      }
+      html:fullscreen #movie_player {
+        width: 100vw;
+        height: 100vh;
+      }
+      #full-bleed-container #movie_player {
+        width: 1280px;
+        height: 631px;
+      }
     </style>
   </head>
   <body>
-    <div id="movie_player" class="html5-video-player playing-mode">
-      <div class="html5-video-container">
-        <video src="/clock.webm" muted loop preload="auto"></video>
+    <div id="full-bleed-container"></div>
+    <div id="player-container">
+      <div id="movie_player" class="html5-video-player playing-mode">
+        <div class="html5-video-container">
+          <video src="/clock.webm" muted loop preload="auto"></video>
+        </div>
+        <div id="ytp-caption-window-container"></div>
+        <div class="ytp-chrome-bottom">
+          <button class="ytp-fullscreen-button" type="button">Tela cheia</button>
+        </div>
       </div>
-      <div id="ytp-caption-window-container"></div>
-      <div class="ytp-chrome-bottom"></div>
     </div>
     <script>
       const player = document.getElementById('movie_player');
+
+      document.querySelector('.ytp-fullscreen-button').addEventListener('click', () => {
+        document.documentElement.requestFullscreen();
+      });
 
       function loadCaptions() {
         const videoId = new URL(location.href).searchParams.get('v');
@@ -66,6 +88,9 @@
         endAd: () => player.classList.remove('ad-showing'),
         hideControls: () => player.classList.add('ytp-autohide'),
         showControls: () => player.classList.remove('ytp-autohide'),
+        enterTheaterMode: () => {
+          document.getElementById('full-bleed-container').append(player);
+        },
         replaceCaptionContainer: () => {
           const fresh = document.createElement('div');
           fresh.id = 'ytp-caption-window-container';
