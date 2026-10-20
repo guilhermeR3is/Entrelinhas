@@ -3,27 +3,17 @@ import { SubtitleOverlay, type TranslationState } from '../../src/overlay/subtit
 import { StudyControls } from '../../src/study/study-controls';
 import { listenForStudyKeys, type StudyCommand } from '../../src/study/study-keys';
 import type { Cue } from '../../src/subtitles/cue';
-import { SubtitleTrack } from '../../src/subtitles/subtitle-track';
-import { parseWebVtt } from '../../src/subtitles/webvtt';
+import { NativeTrackAdapter } from '../../src/universal/native-track-adapter';
 
 const video = document.querySelector('video');
-const trackElement = document.querySelector('track');
 const activeCueList = document.querySelector('#active-cues');
 const player = document.querySelector('#player');
-if (!video || !trackElement || !activeCueList || !player) {
+if (!video || !activeCueList || !player) {
   throw new Error('The test page markup is incomplete');
 }
 
-trackElement.track.mode = 'hidden';
-
-async function loadTrack(url: string, lang: string): Promise<SubtitleTrack> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Could not load ${url}: ${String(response.status)}`);
-  return new SubtitleTrack(parseWebVtt(await response.text(), lang));
-}
-
-const subtitleTrack = await loadTrack(trackElement.src, 'en');
-const portugueseTrack = await loadTrack('subtitles.pt.vtt', 'pt');
+const captions = new NativeTrackAdapter(video);
+captions.status();
 
 const overlayHost = document.createElement('div');
 const shadow = overlayHost.attachShadow({ mode: 'open' });
@@ -51,16 +41,18 @@ const translationState =
   TRANSLATION_STATES[new URLSearchParams(location.search).get('translation-state') ?? ''];
 if (translationState) overlay.showTranslationState(translationState);
 const portugueseCuesAt = (timeMs: number) =>
-  translationState ? [] : portugueseTrack.activeAt(timeMs);
+  translationState ? [] : (captions.officialPortugueseTrack()?.activeAt(timeMs) ?? []);
 
 let shownCues: readonly Cue[] = [];
 const renderActiveCues = (): void => {
   const timeMs = Math.round(video.currentTime * 1000);
-  controls.followSentences(subtitleTrack, timeMs);
+  const englishTrack = captions.englishTrack();
+  if (englishTrack) controls.followSentences(englishTrack, timeMs);
   const shownMs = controls.displayTimeMs(timeMs);
-  overlay.showCues(subtitleTrack.activeAt(shownMs), portugueseCuesAt(shownMs));
+  overlay.showCues(captions.activeCues(shownMs), portugueseCuesAt(shownMs));
   overlay.setStudyState(true, video.paused);
-  const activeCues = subtitleTrack.activeAt(timeMs);
+  document.body.dataset.captionStatus = captions.status();
+  const activeCues = captions.activeCues(timeMs);
   if (activeCues === shownCues) return;
   shownCues = activeCues;
   activeCueList.replaceChildren(
@@ -79,11 +71,14 @@ video.addEventListener('playing', renderEveryFrame);
 video.addEventListener('pause', renderActiveCues);
 video.addEventListener('seeked', renderActiveCues);
 
-if (trackElement.readyState !== HTMLTrackElement.LOADED) {
-  await new Promise((resolve) => {
-    trackElement.addEventListener('load', resolve, { once: true });
-  });
-}
+await Promise.all(
+  Array.from(video.querySelectorAll('track'), async (trackElement) => {
+    if (trackElement.readyState === HTMLTrackElement.LOADED) return;
+    await new Promise((resolve) => {
+      trackElement.addEventListener('load', resolve, { once: true });
+    });
+  }),
+);
 if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
   await new Promise((resolve) => {
     video.addEventListener('loadedmetadata', resolve, { once: true });

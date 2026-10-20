@@ -49,6 +49,19 @@ test('the WebVTT parser reads the same cues as Chrome', async ({ page }) => {
   expect(parsedCues).toEqual(chromeCues);
 });
 
+test('the page reads its tracks through the native track adapter, which hides them', async ({
+  page,
+}) => {
+  await expect(page.locator('body')).toHaveAttribute('data-caption-status', 'full-track');
+  const modes = await page.evaluate(() =>
+    Array.from(
+      document.querySelector('video')?.textTracks ?? [],
+      (track) => `${track.language}:${track.mode}`,
+    ),
+  );
+  expect(modes).toEqual(['en:hidden', 'pt-BR:hidden']);
+});
+
 const LONG_CUE = 'A long cue & two short ones\ninside it.';
 const SEEKS: [number, string[]][] = [
   [0.25, []],
@@ -65,7 +78,7 @@ const SEEKS: [number, string[]][] = [
   [0.75, ['Hello, this is the test page.']],
 ];
 
-test('the synchronizer shows the same cues as Chrome between cue boundaries while seeking', async ({
+test('the adapter and the synchronizer show the same cues as Chrome between cue boundaries while seeking', async ({
   page,
 }) => {
   for (const [seconds, expected] of SEEKS) {

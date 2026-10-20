@@ -78,7 +78,7 @@ function parseTimestamp(timestamp: string): number | null {
   return ((Number(hours) * 60 + Number(minutes)) * 60 + Number(seconds)) * 1000 + Number(fraction);
 }
 
-function toPlainText(cueText: string): string {
+export function toPlainText(cueText: string): string {
   return cueText.replace(TAG, '').replace(CHARACTER_REFERENCE, decodeReference);
 }
 

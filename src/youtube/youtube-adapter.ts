@@ -1,10 +1,10 @@
 import { logger } from '../logger';
+import type { CaptionStatus } from '../subtitles/caption-status';
 import { type Cue, SubtitleFormatError } from '../subtitles/cue';
+import { isEnglish, isPortuguese } from '../subtitles/language';
 import { SubtitleTrack } from '../subtitles/subtitle-track';
 import { parseYouTubeJson3 } from '../subtitles/youtube-json3';
 import { readCaptionTrackMessage } from './caption-track-message';
-
-export type CaptionStatus = 'waiting' | 'full-track' | 'screen' | 'other-language' | 'unreadable';
 
 type CaptionPage = Pick<Window, 'location'>;
 type CapturedTrack = { videoId: string; lang: string; track: SubtitleTrack | null };
@@ -88,14 +88,6 @@ export class YouTubeAdapter {
   private trackFor(captured: CapturedTrack | null): SubtitleTrack | null {
     return captured?.videoId === this.currentVideoId() ? captured.track : null;
   }
-}
-
-function isEnglish(lang: string): boolean {
-  return lang === 'en' || lang.startsWith('en-');
-}
-
-function isPortuguese(lang: string): boolean {
-  return lang === 'pt' || lang.startsWith('pt-');
 }
 
 function readTrack(body: string, lang: string): SubtitleTrack | null {

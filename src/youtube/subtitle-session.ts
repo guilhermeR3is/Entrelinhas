@@ -6,12 +6,13 @@ import {
 import { StudyControls } from '../study/study-controls';
 import type { StudyCommand, StudyKeys } from '../study/study-keys';
 import type { StudyPreferenceStore } from '../study/study-preferences';
+import type { CaptionStatus } from '../subtitles/caption-status';
 import type { Cue } from '../subtitles/cue';
 import type { PortugueseTranslation } from '../translation/portuguese-translation';
 import { observeScreenCaptions } from './caption-observer';
 import { watchPlayerControls } from './player-controls';
 import { watchSpeedIntent } from './speed-intent';
-import type { CaptionStatus, YouTubeAdapter } from './youtube-adapter';
+import type { YouTubeAdapter } from './youtube-adapter';
 
 const NOTICE_DELAY_S = 2;
 const AD_CLASS = 'ad-showing';
