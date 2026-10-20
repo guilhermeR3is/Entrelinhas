@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { entryFor, thumbTabLetter, type EntryState } from './entry';
 
 const ORIGIN = 'https://www.example.com/*';
+const PLAYER = { player: 'player.vimeo.com', playerOrigin: 'https://player.vimeo.com/*' };
+const SITE = { site: 'example.com', origin: ORIGIN };
+const PLAYER_STATES: EntryState[] = [
+  { kind: 'player-needed', ...SITE, ...PLAYER },
+  { kind: 'player-denied', ...SITE, ...PLAYER },
+  { kind: 'player-enabled', ...SITE, ...PLAYER },
+];
 const ALL_STATES: EntryState[] = [
+  ...PLAYER_STATES,
   { kind: 'active', site: 'youtube.com' },
   { kind: 'available', site: 'example.com', origin: ORIGIN },
   { kind: 'enabled', site: 'example.com', origin: ORIGIN },
@@ -16,6 +24,7 @@ describe('entryFor', () => {
     expect(entryFor({ kind: 'active', site: 'youtube.com' })).toEqual({
       headword: 'youtube.com',
       wordClass: 'site compatível',
+      definitionTerm: null,
       definition: 'Ativa aqui.',
       thumbTab: 'lit',
       action: null,
@@ -40,8 +49,37 @@ describe('entryFor', () => {
 
   it('offers links only on a site the person turned on', () => {
     for (const state of ALL_STATES) {
-      expect(entryFor(state).links.length > 0).toBe(state.kind === 'enabled');
+      const turnedOn = state.kind === 'enabled' || PLAYER_STATES.includes(state);
+      expect(entryFor(state).links.length > 0).toBe(turnedOn);
     }
+  });
+
+  it('names the player of another address and offers to turn it on too', () => {
+    const entry = entryFor({ kind: 'player-needed', ...SITE, ...PLAYER });
+    expect(entry).toMatchObject({
+      headword: 'example.com',
+      wordClass: 'ativado por você',
+      definition: 'O vídeo desta página está num player de outro endereço:',
+      definitionTerm: 'player.vimeo.com',
+      thumbTab: 'lit',
+      action: 'activate-player',
+      links: ['deactivate'],
+    });
+  });
+
+  it('lets the person try the player again after saying no to Chrome', () => {
+    const entry = entryFor({ kind: 'player-denied', ...SITE, ...PLAYER });
+    expect(entry.definition).toBe('O Chrome ficou sem a permissão do player. Pode tentar de novo.');
+    expect(entry.action).toBe('activate-player');
+  });
+
+  it('asks for a reload once the player is on', () => {
+    const entry = entryFor({ kind: 'player-enabled', ...SITE, ...PLAYER });
+    expect(entry.definition).toBe(
+      'Player ativado. Recarregue a página para a legenda aparecer nele.',
+    );
+    expect(entry.action).toBe('reload');
+    expect(entry.links).toEqual(['deactivate']);
   });
 
   it('lets the person try again after saying no to Chrome', () => {

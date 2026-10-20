@@ -61,6 +61,35 @@ export async function stubPermissions(page: Page, stub: PermissionsStub): Promis
   }, stub);
 }
 
+export interface PageStub {
+  frames?: { src: string; width: number; height: number }[];
+  failFrames?: boolean;
+}
+
+export async function stubPage(page: Page, stub: PageStub): Promise<void> {
+  await page.addInitScript((pageStub: PageStub) => {
+    const reloaded: number[] = [];
+    Object.assign(window, { reloadedTabs: reloaded });
+    const extensionApi = (globalThis as unknown as { chrome: { scripting: object; tabs: object } })
+      .chrome;
+    Object.defineProperty(extensionApi.scripting, 'executeScript', {
+      value: () =>
+        pageStub.failFrames
+          ? Promise.reject(new Error('Simulated page without access'))
+          : Promise.resolve([{ frameId: 0, result: pageStub.frames ?? [] }]),
+    });
+    Object.defineProperty(extensionApi.tabs, 'reload', {
+      value: (tabId: number) => {
+        reloaded.push(tabId);
+        return Promise.resolve();
+      },
+    });
+    window.close = () => {
+      document.documentElement.dataset.closed = 'true';
+    };
+  }, stub);
+}
+
 export const test = base.extend<{ context: BrowserContext; popupUrl: string; optionsUrl: string }>({
   context: async ({}, use) => {
     const context = await chromium.launchPersistentContext('', {

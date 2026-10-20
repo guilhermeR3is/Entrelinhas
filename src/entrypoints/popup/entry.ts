@@ -1,14 +1,21 @@
 import type { TabStatus } from '../../tab-status';
+import type { PlayerFrame } from '../../universal/player-frames';
+
+type SiteFields = { site: string; origin: string };
+type PlayerState = SiteFields &
+  PlayerFrame & { kind: 'player-needed' | 'player-denied' | 'player-enabled' };
 
 export type EntryState =
-  TabStatus | { kind: 'denied'; site: string; origin: string } | { kind: 'error' };
+  TabStatus | (SiteFields & { kind: 'denied' }) | PlayerState | { kind: 'error' };
 
-export type EntryAction = 'activate' | 'deactivate' | 'pick' | 'load' | 'retry';
+export type EntryAction =
+  'activate' | 'activate-player' | 'deactivate' | 'pick' | 'load' | 'reload' | 'retry';
 
 export interface Entry {
   headword: string;
   wordClass: string;
   definition: string;
+  definitionTerm: string | null;
   thumbTab: 'lit' | 'hidden';
   action: EntryAction | null;
   links: readonly EntryAction[];
@@ -16,9 +23,11 @@ export interface Entry {
 
 export const ACTION_LABELS: Record<EntryAction, string> = {
   activate: 'Ativar neste site',
+  'activate-player': 'Ativar também no player',
   deactivate: 'Desativar neste site',
   pick: 'Escolher a legenda na tela',
   load: 'Carregar arquivo de legenda',
+  reload: 'Recarregar a página',
   retry: 'Tentar de novo',
 };
 
@@ -28,6 +37,7 @@ export function entryFor(state: EntryState): Entry {
       return {
         headword: state.site,
         wordClass: 'site compatível',
+        definitionTerm: null,
         definition: 'Ativa aqui.',
         thumbTab: 'lit',
         action: null,
@@ -37,6 +47,7 @@ export function entryFor(state: EntryState): Entry {
       return {
         headword: state.site,
         wordClass: 'não ativado',
+        definitionTerm: null,
         definition: 'Ative para ver a legenda dupla nos vídeos daqui.',
         thumbTab: 'hidden',
         action: 'activate',
@@ -46,6 +57,7 @@ export function entryFor(state: EntryState): Entry {
       return {
         headword: state.site,
         wordClass: 'ativado por você',
+        definitionTerm: null,
         definition: 'Ativa aqui.',
         thumbTab: 'lit',
         action: 'pick',
@@ -55,15 +67,47 @@ export function entryFor(state: EntryState): Entry {
       return {
         headword: state.site,
         wordClass: 'não ativado',
+        definitionTerm: null,
         definition: 'O Chrome ficou sem a permissão. Pode tentar de novo.',
         thumbTab: 'hidden',
         action: 'activate',
         links: [],
       };
+    case 'player-needed':
+      return {
+        headword: state.site,
+        wordClass: 'ativado por você',
+        definitionTerm: state.player,
+        definition: 'O vídeo desta página está num player de outro endereço:',
+        thumbTab: 'lit',
+        action: 'activate-player',
+        links: ['deactivate'],
+      };
+    case 'player-denied':
+      return {
+        headword: state.site,
+        wordClass: 'ativado por você',
+        definitionTerm: null,
+        definition: 'O Chrome ficou sem a permissão do player. Pode tentar de novo.',
+        thumbTab: 'lit',
+        action: 'activate-player',
+        links: ['deactivate'],
+      };
+    case 'player-enabled':
+      return {
+        headword: state.site,
+        wordClass: 'ativado por você',
+        definitionTerm: null,
+        definition: 'Player ativado. Recarregue a página para a legenda aparecer nele.',
+        thumbTab: 'lit',
+        action: 'reload',
+        links: ['deactivate'],
+      };
     case 'unsupported':
       return {
         headword: 'Esta página',
         wordClass: 'não compatível',
+        definitionTerm: null,
         definition: 'Funciona em sites com endereço https.',
         thumbTab: 'hidden',
         action: null,
@@ -73,6 +117,7 @@ export function entryFor(state: EntryState): Entry {
       return {
         headword: 'Esta aba',
         wordClass: 'sem resposta',
+        definitionTerm: null,
         definition: 'Não deu para verificar agora.',
         thumbTab: 'hidden',
         action: 'retry',

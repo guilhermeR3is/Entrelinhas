@@ -24,6 +24,6 @@ export function tabStatusFromUrl(
     : { kind: 'available', site, origin };
 }
 
-function siteName(hostname: string): string {
+export function siteName(hostname: string): string {
   return toUnicode(hostname).replace(/^www\./, '');
 }

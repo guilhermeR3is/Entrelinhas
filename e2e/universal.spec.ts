@@ -55,7 +55,7 @@ test.beforeEach(async ({ context }) => {
     .poll(async () =>
       (await registeredScripts(context)).map(({ id, matches }) => ({ id, matches })),
     )
-    .toEqual([{ id: 'universal', matches: ['http://localhost/*'] }]);
+    .toEqual([{ id: 'universal', matches: ['http://localhost/*', 'http://player.localhost/*'] }]);
 });
 
 test('registers the universal script only for the sites without their own adapter', async ({
@@ -430,6 +430,16 @@ test.describe('a player inside a frame', () => {
     await expect(frame.locator(ENGLISH)).toHaveText('Hello, this is the test page.');
     await expect(frame.locator(PORTUGUESE)).toHaveText('Olá, esta é a página de teste.');
     await expect(page.locator(OVERLAY)).toHaveCount(0);
+  });
+
+  test('shows the caption over a player of another address once both are on', async ({ page }) => {
+    await page.goto('/foreign-player.html');
+    const frame = await playerFrame(page);
+    expect(new URL(frame.url()).host).toBe('player.localhost:4321');
+    await seekIn(frame, 0.75);
+
+    await expect(frame.locator(ENGLISH)).toHaveText('Hello, this is the test page.');
+    expect(await trackModes(frame)).toEqual(['hidden', 'hidden']);
   });
 
   test('stays out of a frame when the page around it was not turned on', async ({ page }) => {

@@ -14,7 +14,7 @@ export default defineConfig({
   srcDir: 'src',
   imports: false,
   manifest: ({ mode }) => {
-    const testPages = mode === 'e2e' ? ['http://localhost/*'] : [];
+    const testPages = mode === 'e2e' ? ['http://localhost/*', 'http://player.localhost/*'] : [];
     return {
       name: 'Projeto Bilíngue',
       permissions: ['storage', 'scripting', 'activeTab'],

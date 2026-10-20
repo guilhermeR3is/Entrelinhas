@@ -60,6 +60,11 @@ body {
   text-wrap: pretty;
 }
 
+.definition .term {
+  display: inline-block;
+  max-width: 100%;
+}
+
 .entry-action {
   margin-top: var(--space-4);
 }

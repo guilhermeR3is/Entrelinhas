@@ -1,5 +1,5 @@
-import type { Page } from '@playwright/test';
-import { expect, stubActiveTab, stubPermissions, test } from './fixtures';
+import type { BrowserContext, Page } from '@playwright/test';
+import { expect, stubActiveTab, stubPage, stubPermissions, test } from './fixtures';
 
 function permissionCalls(popup: Page): Promise<string[]> {
   return popup.evaluate(() => (window as unknown as { permissionCalls: string[] }).permissionCalls);
@@ -235,4 +235,92 @@ test('opens the shortcuts page from the link at the foot of the popup', async ({
   ]);
   await expect(options.getByRole('heading', { level: 1 })).toHaveText('Atalhos do teclado');
   expect(new URL(options.url()).pathname).toBe('/options.html');
+});
+
+test.describe('a site whose video plays in a player of another address', () => {
+  const SITE = 'https://www.cursos.com.br/*';
+  const PLAYER = 'https://player.vimeo.com/*';
+  const FRAMES = [
+    { src: 'https://ads.example.net/slot', width: 300, height: 250 },
+    { src: 'https://player.vimeo.com/video/9', width: 854, height: 480 },
+  ];
+
+  async function openPopup(
+    context: BrowserContext,
+    popupUrl: string,
+    permissions: { granted: string[]; answer?: boolean },
+    frames = FRAMES,
+  ): Promise<Page> {
+    const popup = await context.newPage();
+    await stubActiveTab(popup, { url: 'https://www.cursos.com.br/aula/3', id: 42 });
+    await stubPermissions(popup, permissions);
+    await stubPage(popup, { frames });
+    await popup.goto(popupUrl);
+    return popup;
+  }
+
+  test('names the player and turns it on too, asking Chrome only for the player', async ({
+    context,
+    popupUrl,
+  }) => {
+    const popup = await openPopup(context, popupUrl, { granted: [SITE], answer: true });
+
+    await expect(popup.getByRole('status')).toContainText(
+      'O vídeo desta página está num player de outro endereço: player.vimeo.com.',
+    );
+    await expect(popup.locator('.definition strong')).toHaveText('player.vimeo.com');
+    await expect(popup.locator('.thumb-tab')).toHaveText('C');
+    await expect(popup.locator('.entry-link:visible')).toHaveText(['Desativar neste site']);
+    await popup.getByRole('button', { name: 'Ativar também no player' }).click();
+
+    await expect(popup.getByRole('status')).toContainText(
+      'Player ativado. Recarregue a página para a legenda aparecer nele.',
+    );
+    expect(await permissionCalls(popup)).toEqual([`request ${PLAYER}`]);
+    await popup.getByRole('button', { name: 'Recarregar a página' }).click();
+    await expect(popup.locator('html')).toHaveAttribute('data-closed', 'true');
+    expect(
+      await popup.evaluate(() => (window as unknown as { reloadedTabs: number[] }).reloadedTabs),
+    ).toEqual([42]);
+  });
+
+  test('looks for the player right after the site is turned on', async ({ context, popupUrl }) => {
+    const popup = await openPopup(context, popupUrl, { granted: [], answer: true });
+    await popup.getByRole('button', { name: 'Ativar neste site' }).click();
+
+    await expect(popup.getByRole('button', { name: 'Ativar também no player' })).toBeVisible();
+    expect(await permissionCalls(popup)).toEqual([`request ${SITE}`]);
+  });
+
+  test('lets the person try the player again after saying no to Chrome', async ({
+    context,
+    popupUrl,
+  }) => {
+    const popup = await openPopup(context, popupUrl, { granted: [SITE], answer: false });
+    await popup.getByRole('button', { name: 'Ativar também no player' }).click();
+
+    await expect(popup.getByRole('status')).toContainText(
+      'O Chrome ficou sem a permissão do player. Pode tentar de novo.',
+    );
+    await expect(popup.getByRole('button', { name: 'Ativar também no player' })).toBeEnabled();
+  });
+
+  test('turns off the site and its player together', async ({ context, popupUrl }) => {
+    const popup = await openPopup(context, popupUrl, { granted: [SITE, PLAYER] });
+    await expect(popup.getByRole('button', { name: 'Escolher a legenda na tela' })).toBeVisible();
+    await popup.getByRole('button', { name: 'Desativar neste site' }).click();
+
+    await expect(popup.getByRole('status')).toContainText('não ativado');
+    expect(await permissionCalls(popup)).toEqual([`remove ${SITE},${PLAYER}`]);
+  });
+
+  test('offers nothing more when the page has no player of another address', async ({
+    context,
+    popupUrl,
+  }) => {
+    const popup = await openPopup(context, popupUrl, { granted: [SITE] }, [
+      { src: 'https://www.youtube.com/embed/abc', width: 854, height: 480 },
+    ]);
+    await expect(popup.getByRole('button', { name: 'Escolher a legenda na tela' })).toBeVisible();
+  });
 });

@@ -3,12 +3,20 @@ import '@fontsource-variable/atkinson-hyperlegible-next/wght-italic.css';
 import './style.css';
 import { browser } from 'wxt/browser';
 import { logger } from '../../logger';
-import { tabStatusFromUrl } from '../../tab-status';
+import { type TabStatus, tabStatusFromUrl } from '../../tab-status';
+import { choosePlayerFrame, measureFrames, type PlayerFrame } from '../../universal/player-frames';
 import { LOAD_FILE, PICK_CAPTION, SITE_DEACTIVATED } from '../../universal/site-message';
 import { ACTION_LABELS, entryFor, thumbTabLetter, type EntryState } from './entry';
 
 type SiteState = Extract<EntryState, { origin: string }>;
-type CurrentTab = { state: EntryState; tabId: number | undefined };
+type PlayerState = Extract<EntryState, { playerOrigin: string }>;
+type CurrentTab = {
+  state: EntryState;
+  tabId: number | undefined;
+  url: string | undefined;
+  player: PlayerFrame | null;
+  granted: readonly string[];
+};
 
 const SLOW_CHECK_NOTICE_MS = 150;
 const REVEAL_EASING = 'cubic-bezier(0.23, 1, 0.32, 1)';
@@ -29,7 +37,13 @@ const action = element('.entry-action');
 const actionLinks = Array.from(document.querySelectorAll<HTMLElement>('.entry-link'));
 const thumbTab = element('.thumb-tab');
 const shortcutsLink = element('.shortcuts-link');
-let current: CurrentTab = { state: { kind: 'error' }, tabId: undefined };
+let current: CurrentTab = {
+  state: { kind: 'error' },
+  tabId: undefined,
+  url: undefined,
+  player: null,
+  granted: [],
+};
 
 function reveal(): void {
   const from = reducedMotion.matches
@@ -63,7 +77,16 @@ function show(state: EntryState, { animate }: { animate: boolean }): void {
   const view = entryFor(state);
   headword.replaceChildren(...breakAtDots(view.headword));
   wordClass.textContent = view.wordClass;
-  definition.textContent = view.definition;
+  if (view.definitionTerm === null) {
+    definition.textContent = view.definition;
+  } else {
+    const term = document.createElement('strong');
+    term.append(...breakAtDots(view.definitionTerm));
+    const sentenceEnd = document.createElement('span');
+    sentenceEnd.className = 'term';
+    sentenceEnd.append(term, '.');
+    definition.replaceChildren(`${view.definition} `, sentenceEnd);
+  }
   thumbTab.dataset.state = view.thumbTab;
   thumbTab.textContent = view.thumbTab === 'lit' ? thumbTabLetter(view.headword) : '';
   action.hidden = view.action === null;
@@ -107,28 +130,103 @@ async function readCurrentTab(): Promise<CurrentTab> {
   try {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     const { origins = [] } = await browser.permissions.getAll();
-    return { state: tabStatusFromUrl(tab?.url, origins), tabId: tab?.id };
+    const status = tabStatusFromUrl(tab?.url, origins);
+    const player = status.kind === 'enabled' ? await findPlayer(tab?.id, tab?.url) : null;
+    return {
+      state: withPlayer(status, player, origins),
+      tabId: tab?.id,
+      url: tab?.url,
+      player,
+      granted: origins,
+    };
   } catch (error) {
     logger.error('Could not read the active tab', error);
-    return { state: { kind: 'error' }, tabId: undefined };
+    return {
+      state: { kind: 'error' },
+      tabId: undefined,
+      url: undefined,
+      player: null,
+      granted: [],
+    };
   }
+}
+
+async function findPlayer(
+  tabId: number | undefined,
+  url: string | undefined,
+): Promise<PlayerFrame | null> {
+  if (tabId === undefined || url === undefined) return null;
+  try {
+    const [measured] = await browser.scripting.executeScript({
+      target: { tabId },
+      func: measureFrames,
+    });
+    return choosePlayerFrame(measured?.result, url);
+  } catch (error) {
+    logger.error('Could not look for a player in the page', error);
+    return null;
+  }
+}
+
+function withPlayer(
+  status: TabStatus,
+  player: PlayerFrame | null,
+  granted: readonly string[],
+): EntryState {
+  if (status.kind !== 'enabled' || !player || granted.includes(player.playerOrigin)) return status;
+  return { ...status, ...player, kind: 'player-needed' };
 }
 
 async function activate({ site, origin }: SiteState): Promise<void> {
   setBusy(true);
   try {
     const granted = await browser.permissions.request({ origins: [origin] });
-    show({ kind: granted ? 'enabled' : 'denied', site, origin }, { animate: true });
+    if (!granted) {
+      show({ kind: 'denied', site, origin }, { animate: true });
+      return;
+    }
+    const player = await findPlayer(current.tabId, current.url);
+    current = { ...current, player, granted: [...current.granted, origin] };
+    show(withPlayer({ kind: 'enabled', site, origin }, player, current.granted), { animate: true });
   } catch (error) {
     logger.error('Could not ask Chrome for the site', error);
     show({ kind: 'error' }, { animate: true });
   }
 }
 
-async function deactivate({ site, origin }: SiteState): Promise<void> {
+async function activatePlayer(state: PlayerState): Promise<void> {
   setBusy(true);
   try {
-    await browser.permissions.remove({ origins: [origin] });
+    const granted = await browser.permissions.request({ origins: [state.playerOrigin] });
+    if (granted) current = { ...current, granted: [...current.granted, state.playerOrigin] };
+    show({ ...state, kind: granted ? 'player-enabled' : 'player-denied' }, { animate: true });
+  } catch (error) {
+    logger.error('Could not ask Chrome for the player', error);
+    show({ kind: 'error' }, { animate: true });
+  }
+}
+
+async function reloadTab(): Promise<void> {
+  const { tabId } = current;
+  setBusy(true);
+  try {
+    if (tabId === undefined) throw new Error('The active tab has no id');
+    await browser.tabs.reload(tabId);
+    window.close();
+  } catch (error) {
+    logger.error('Could not reload the tab', error);
+    show({ kind: 'error' }, { animate: true });
+  }
+}
+
+async function deactivate({ site, origin }: SiteState): Promise<void> {
+  const playerOrigin = current.player?.playerOrigin;
+  const origins =
+    playerOrigin && current.granted.includes(playerOrigin) ? [origin, playerOrigin] : [origin];
+  setBusy(true);
+  try {
+    await browser.permissions.remove({ origins });
+    current = { ...current, granted: current.granted.filter((kept) => !origins.includes(kept)) };
   } catch (error) {
     logger.error('Could not turn the site off', error);
     show({ kind: 'error' }, { animate: true });
@@ -164,8 +262,13 @@ function runAction(chosen: string | undefined): void {
     void recheck();
     return;
   }
+  if (chosen === 'reload') {
+    void reloadTab();
+    return;
+  }
   if (!('origin' in state)) return;
   if (chosen === 'activate') void activate(state);
+  if (chosen === 'activate-player' && 'playerOrigin' in state) void activatePlayer(state);
   if (chosen === 'deactivate') void deactivate(state);
   if (chosen === 'pick') void handOverToTab(PICK_CAPTION);
   if (chosen === 'load') void handOverToTab(LOAD_FILE);
