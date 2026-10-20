@@ -1,11 +1,12 @@
 import { browser } from 'wxt/browser';
 import { logger } from '../logger';
+import { isFrameAccessRequest, pageIsAllowed } from './frame-access';
 
 const SCRIPT_ID = 'universal';
 const SCRIPT_FILE = '/content-scripts/universal.js';
 const DEDICATED_SITES = new Set(['https://www.youtube.com/*']);
 
-export type SiteAccessApi = Pick<typeof browser, 'permissions' | 'scripting' | 'tabs'>;
+export type SiteAccessApi = Pick<typeof browser, 'permissions' | 'runtime' | 'scripting' | 'tabs'>;
 
 export function serveSiteAccess(api: SiteAccessApi = browser): void {
   let queue = Promise.resolve();
@@ -23,6 +24,19 @@ export function serveSiteAccess(api: SiteAccessApi = browser): void {
   api.permissions.onRemoved.addListener(() => {
     sync();
   });
+  api.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!isFrameAccessRequest(message)) return false;
+    api.permissions.getAll().then(
+      ({ origins = [] }) => {
+        sendResponse({ allowed: pageIsAllowed(universalSites(origins), sender.tab?.url) });
+      },
+      (error: unknown) => {
+        logger.error('Could not check the page around a frame', error);
+        sendResponse({ allowed: false });
+      },
+    );
+    return true;
+  });
   sync();
 }
 
@@ -34,12 +48,18 @@ export async function syncUniversalScript(api: SiteAccessApi): Promise<void> {
     if (registered) await api.scripting.unregisterContentScripts({ ids: [SCRIPT_ID] });
     return;
   }
-  if (registered?.matches?.join() === matches.join()) return;
+  const upToDate =
+    registered?.matches?.join() === matches.join() &&
+    registered.allFrames === true &&
+    registered.matchOriginAsFallback === true;
+  if (upToDate) return;
 
   const script = {
     id: SCRIPT_ID,
     js: [SCRIPT_FILE],
     matches,
+    allFrames: true,
+    matchOriginAsFallback: true,
     runAt: 'document_idle' as const,
     persistAcrossSessions: true,
   };

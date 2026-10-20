@@ -3,9 +3,18 @@ import { serveSiteAccess, syncUniversalScript, type SiteAccessApi } from './site
 
 type Script = { id: string; matches?: string[] };
 type PermissionListener = (permissions: { origins?: string[] }) => void;
+type MessageListener = (
+  message: unknown,
+  sender: { tab?: { url?: string } },
+  sendResponse: (response: unknown) => void,
+) => boolean;
 
 function fakeApi(origins: string[], registered: Script[] = []) {
-  const listeners = { added: [] as PermissionListener[], removed: [] as PermissionListener[] };
+  const listeners = {
+    added: [] as PermissionListener[],
+    removed: [] as PermissionListener[],
+    messages: [] as MessageListener[],
+  };
   const scripts = [...registered];
   const api = {
     permissions: {
@@ -31,6 +40,9 @@ function fakeApi(origins: string[], registered: Script[] = []) {
       }),
       executeScript: vi.fn(() => Promise.resolve([])),
     },
+    runtime: {
+      onMessage: { addListener: (listener: MessageListener) => listeners.messages.push(listener) },
+    },
     tabs: { query: vi.fn(() => Promise.resolve([{ id: 7 }, { id: 9 }])) },
   };
   return { api, listeners, scripts, siteAccess: api as unknown as SiteAccessApi };
@@ -49,6 +61,8 @@ describe('syncUniversalScript', () => {
         id: 'universal',
         js: ['/content-scripts/universal.js'],
         matches: ['https://aulas.dev/*', 'https://www.example.com/*'],
+        allFrames: true,
+        matchOriginAsFallback: true,
         persistAcrossSessions: true,
       }),
     ]);
@@ -63,7 +77,14 @@ describe('syncUniversalScript', () => {
   it('leaves the script alone when the sites did not change', async () => {
     const { siteAccess, api } = fakeApi(
       ['https://www.example.com/*'],
-      [{ id: 'universal', matches: ['https://www.example.com/*'] }],
+      [
+        {
+          id: 'universal',
+          matches: ['https://www.example.com/*'],
+          allFrames: true,
+          matchOriginAsFallback: true,
+        } as Script,
+      ],
     );
     await syncUniversalScript(siteAccess);
     expect(api.scripting.updateContentScripts).not.toHaveBeenCalled();
@@ -78,6 +99,17 @@ describe('syncUniversalScript', () => {
     await syncUniversalScript(siteAccess);
     expect(scripts.map((script) => script.matches)).toEqual([
       ['https://aulas.dev/*', 'https://www.example.com/*'],
+    ]);
+  });
+
+  it('moves a script registered before frames were supported into the frames too', async () => {
+    const { siteAccess, scripts } = fakeApi(
+      ['https://www.example.com/*'],
+      [{ id: 'universal', matches: ['https://www.example.com/*'] }],
+    );
+    await syncUniversalScript(siteAccess);
+    expect(scripts).toEqual([
+      expect.objectContaining({ allFrames: true, matchOriginAsFallback: true }),
     ]);
   });
 
@@ -133,5 +165,66 @@ describe('serveSiteAccess', () => {
     await vi.waitFor(() => {
       expect(scripts).toEqual([]);
     });
+  });
+});
+
+describe('serveSiteAccess answering a frame', () => {
+  async function ask(origins: string[], message: unknown, pageUrl: string | undefined) {
+    const { siteAccess, listeners } = fakeApi(origins);
+    serveSiteAccess(siteAccess);
+    const sendResponse = vi.fn();
+    const kept = listeners.messages.map((listener) =>
+      listener(message, pageUrl === undefined ? {} : { tab: { url: pageUrl } }, sendResponse),
+    );
+    if (kept.some(Boolean)) {
+      await vi.waitFor(() => {
+        expect(sendResponse).toHaveBeenCalled();
+      });
+    }
+    return { kept, sendResponse };
+  }
+
+  const QUESTION = { type: 'projeto-bilingue:may-run-in-frame' };
+
+  it('lets a frame run inside a page the person turned on', async () => {
+    const { sendResponse } = await ask(
+      ['https://www.example.com/*'],
+      QUESTION,
+      'https://www.example.com/aula/3',
+    );
+    expect(sendResponse).toHaveBeenCalledWith({ allowed: true });
+  });
+
+  it('keeps a frame quiet inside a page that was not turned on', async () => {
+    const { sendResponse } = await ask(
+      ['https://player.example.net/*'],
+      QUESTION,
+      'https://outro-site.com/',
+    );
+    expect(sendResponse).toHaveBeenCalledWith({ allowed: false });
+  });
+
+  it('keeps a frame quiet inside YouTube, which has its own adapter', async () => {
+    const { sendResponse } = await ask(
+      ['https://www.youtube.com/*', 'https://player.example.net/*'],
+      QUESTION,
+      'https://www.youtube.com/watch?v=abc',
+    );
+    expect(sendResponse).toHaveBeenCalledWith({ allowed: false });
+  });
+
+  it('keeps a frame quiet when Chrome does not say which page holds it', async () => {
+    const { sendResponse } = await ask(['https://www.example.com/*'], QUESTION, undefined);
+    expect(sendResponse).toHaveBeenCalledWith({ allowed: false });
+  });
+
+  it('leaves other messages to their own listeners', async () => {
+    const { kept, sendResponse } = await ask(
+      ['https://www.example.com/*'],
+      { type: 'projeto-bilingue:find-translations' },
+      'https://www.example.com/',
+    );
+    expect(kept).toEqual([false]);
+    expect(sendResponse).not.toHaveBeenCalled();
   });
 });

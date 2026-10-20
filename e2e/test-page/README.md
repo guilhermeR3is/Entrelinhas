@@ -22,3 +22,7 @@ como o H.264.
 
 `plain-video.html` mostra o mesmo vídeo sem nenhuma legenda; os testes carregam nele o arquivo
 `lesson.srt`, escrito à mão, como faria quem baixa uma legenda separada.
+
+`framed-player.html` põe a página `native-tracks.html` dentro de um iframe, sempre pelo endereço
+`localhost`. Aberta por `localhost`, o player é da mesma origem da página; aberta por `127.0.0.1`, a
+página de fora não foi ativada e a extensão não deve entrar no player.

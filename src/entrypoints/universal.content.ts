@@ -25,11 +25,13 @@ import type { Cue } from '../subtitles/cue';
 import { readSubtitleFile } from '../subtitles/subtitle-file';
 import { FileTrackAdapter } from '../universal/file-track-adapter';
 import { coverVideo } from '../universal/video-cover';
+import { mayRunInFrame } from '../universal/frame-access';
 
 export default defineContentScript({
   registration: 'runtime',
   cssInjectionMode: 'manual',
   async main(ctx) {
+    if (window.self !== window.top && !(await mayRunInFrame())) return;
     let session: SubtitleSession | undefined;
     let sessionBox: HTMLElement | undefined;
     let picker: CaptionPicker | undefined;

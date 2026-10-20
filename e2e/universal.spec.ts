@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import type { BrowserContext, Page } from '@playwright/test';
+import type { BrowserContext, Frame, Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 const OVERLAY = 'projeto-bilingue-legenda';
@@ -393,5 +393,52 @@ test.describe('loading a subtitle file', () => {
     await expect(page.locator(STRIP)).toHaveCount(0);
     await seek(page, 0.75);
     await expect(page.locator(ENGLISH)).toHaveText('Hello, this is the test page.');
+  });
+});
+
+test.describe('a player inside a frame', () => {
+  async function playerFrame(page: Page): Promise<Frame> {
+    const frame = await (await page.locator('iframe').elementHandle()).contentFrame();
+    if (!frame) throw new Error('Missing player frame');
+    await frame.waitForFunction(() => (document.querySelector('video')?.readyState ?? 0) >= 2);
+    return frame;
+  }
+
+  async function seekIn(frame: Frame, seconds: number): Promise<void> {
+    await frame.evaluate(async (time) => {
+      const video = document.querySelector('video');
+      if (!video) throw new Error('No video in the frame');
+      const seeked = new Promise((resolve) => {
+        video.addEventListener('seeked', resolve, { once: true });
+      });
+      video.currentTime = time;
+      await seeked;
+    }, seconds);
+  }
+
+  function trackModes(frame: Frame): Promise<string[]> {
+    return frame.evaluate(() =>
+      Array.from(document.querySelector('video')?.textTracks ?? [], (track) => track.mode),
+    );
+  }
+
+  test('shows the caption over a player that the site puts in a frame', async ({ page }) => {
+    await page.goto('/framed-player.html');
+    const frame = await playerFrame(page);
+    await seekIn(frame, 0.75);
+
+    await expect(frame.locator(ENGLISH)).toHaveText('Hello, this is the test page.');
+    await expect(frame.locator(PORTUGUESE)).toHaveText('Olá, esta é a página de teste.');
+    await expect(page.locator(OVERLAY)).toHaveCount(0);
+  });
+
+  test('stays out of a frame when the page around it was not turned on', async ({ page }) => {
+    await page.goto('http://127.0.0.1:4321/framed-player.html');
+    const frame = await playerFrame(page);
+    await seekIn(frame, 0.75);
+    await page.waitForTimeout(1500);
+
+    await expect(frame.locator(OVERLAY)).toHaveCount(0);
+    expect(await trackModes(frame)).toEqual(['showing', 'disabled']);
   });
 });
