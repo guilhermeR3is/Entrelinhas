@@ -430,6 +430,13 @@ describe('SubtitleOverlay', () => {
       expect(find('.box').style.getPropertyValue('--lift-shift')).toBe('20px');
     });
 
+    it('keeps the strip above the caption when the box does not fit in the video', () => {
+      layOut({ width: 1000, height: 50 });
+      find('.handle').click();
+      expect(find('.box').style.top).toBe('0px');
+      expect(find('.box').classList.contains('top-edge')).toBe(false);
+    });
+
     it('goes down to the very bottom once the player controls hide', () => {
       layOut({ width: 1000, height: 500 });
       for (let step = 0; step < 3; step += 1) press('ArrowDown');
@@ -486,6 +493,33 @@ describe('SubtitleOverlay', () => {
         [{ x: 0.2, y: 0.15, edge: 'top' }],
         [{ x: 0.2, y: 0.96, edge: 'bottom' }],
       ]);
+    });
+
+    it('stays on screen while it is dragged, even when the caption ends under the pointer', () => {
+      const view = container.ownerDocument.defaultView;
+      if (!view) throw new Error('Missing window');
+      const handle = find('.handle');
+      Object.defineProperty(handle, 'setPointerCapture', { value: vi.fn() });
+      const pointer = (type: string, clientY: number) =>
+        new view.PointerEvent(type, {
+          pointerId: 7,
+          button: 0,
+          clientX: 0,
+          clientY,
+          bubbles: true,
+        });
+      overlay.setStudyState(true, false);
+      layOut({ width: 1000, height: 500 });
+
+      handle.dispatchEvent(pointer('pointerdown', 300));
+      handle.dispatchEvent(pointer('pointermove', 250));
+      overlay.showCues([]);
+      expect(find('.box').hidden).toBe(false);
+      expect(find('.box').classList.contains('dragging')).toBe(true);
+
+      handle.dispatchEvent(pointer('lostpointercapture', 250));
+      expect(find('.box').classList.contains('dragging')).toBe(false);
+      expect(find('.box').hidden).toBe(true);
     });
 
     it('labels the handle and tells how to move it from the keyboard', () => {

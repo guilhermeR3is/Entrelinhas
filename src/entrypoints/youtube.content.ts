@@ -28,11 +28,12 @@ export default defineContentScript({
     void translation.prepare(translatorApi, window, ctx.signal);
     listenForStudyKeys(
       window,
-      (command) => session?.handleCommand(command) ?? false,
+      (command) => !ctx.isInvalid && (session?.handleCommand(command) ?? false),
       ctx.signal,
       () => keys,
     );
     ctx.addEventListener(window, 'message', (event) => {
+      if (ctx.isInvalid) return;
       adapter.receive(event);
       session?.render();
     });

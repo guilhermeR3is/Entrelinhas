@@ -242,7 +242,9 @@ export class SubtitleOverlay {
 
   private renderBox(): void {
     const flashing = this.stripFlashTimer !== undefined;
-    const stripShown = this.studyAvailable && (this.stripPinned || this.stripFocused || flashing);
+    const stripShown =
+      this.drag !== null ||
+      (this.studyAvailable && (this.stripPinned || this.stripFocused || flashing));
     this.strip.element.classList.toggle('shown', stripShown);
     this.box.classList.toggle('study', this.studyAvailable);
     this.box.hidden = this.subtitle.hidden && !stripShown;
@@ -278,10 +280,12 @@ export class SubtitleOverlay {
       if (this.drag.moved) this.onPlacementChange(this.placement);
       this.drag = null;
       this.box.classList.remove('dragging');
+      this.renderBox();
       this.place();
     };
     handle.addEventListener('pointerup', endDrag);
     handle.addEventListener('pointercancel', endDrag);
+    handle.addEventListener('lostpointercapture', endDrag);
     handle.addEventListener('click', () => {
       if (this.clickEndsDrag) {
         this.clickEndsDrag = false;
@@ -327,14 +331,16 @@ export class SubtitleOverlay {
     const bottomGap = frame.height - top - box.height;
     const liftShift =
       this.controlsLift > 0
-        ? Math.min(top, Math.max(0, this.controlsLift + CONTROLS_GAP_PX - bottomGap))
+        ? Math.max(0, Math.min(top, this.controlsLift + CONTROLS_GAP_PX - bottomGap))
         : 0;
     this.shownTop = top - liftShift;
     this.box.style.left = `${String(offset.left)}px`;
     this.box.style.top = offset.edge === 'top' ? `${String(offset.distance)}px` : '';
     this.box.style.bottom = offset.edge === 'bottom' ? `${String(offset.distance)}px` : '';
     this.box.style.setProperty('--lift-shift', `${String(liftShift)}px`);
-    if (!this.drag?.moved) this.box.classList.toggle('top-edge', offset.edge === 'top');
+    if (!this.drag?.moved) {
+      this.box.classList.toggle('top-edge', offset.edge === 'top' && box.height <= frame.height);
+    }
   }
 
   private frameSize(): Size {

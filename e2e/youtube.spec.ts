@@ -442,3 +442,51 @@ test('follows keys changed in the options while the video page stays open', asyn
   expect(await keysSeenByPage(page)).toEqual(['z']);
   expect(await speed(page)).toBe(0.95);
 });
+
+test('steps aside when the extension is reloaded while the video page stays open', async ({
+  page,
+  context,
+  popupUrl,
+}) => {
+  await open(page, 'video-a');
+  await expect(page.locator(ENGLISH)).toHaveText('First line of video A');
+
+  const extensionPage = await context.newPage();
+  await extensionPage.goto(popupUrl);
+  await extensionPage
+    .evaluate(() => {
+      (
+        globalThis as unknown as { chrome: { runtime: { reload(): void } } }
+      ).chrome.runtime.reload();
+    })
+    .catch(() => undefined);
+  await expect.poll(() => context.serviceWorkers().length, { timeout: 10_000 }).toBeGreaterThan(0);
+
+  await page.keyboard.press('z');
+  await expect(page.locator(OVERLAY)).toHaveCount(0);
+  expect(await keysSeenByPage(page)).toEqual(['z']);
+  expect(await speed(page)).toBe(1);
+});
+
+test('steps aside on the next caption after the extension is reloaded, without any key', async ({
+  page,
+  context,
+  popupUrl,
+}) => {
+  await open(page, 'video-a');
+  await expect(page.locator(ENGLISH)).toHaveText('First line of video A');
+
+  const extensionPage = await context.newPage();
+  await extensionPage.goto(popupUrl);
+  await extensionPage
+    .evaluate(() => {
+      (
+        globalThis as unknown as { chrome: { runtime: { reload(): void } } }
+      ).chrome.runtime.reload();
+    })
+    .catch(() => undefined);
+  await expect.poll(() => context.serviceWorkers().length, { timeout: 10_000 }).toBeGreaterThan(0);
+
+  await fakePlayer(page, 'openVideo', 'video-b');
+  await expect(page.locator(OVERLAY)).toHaveCount(0);
+});

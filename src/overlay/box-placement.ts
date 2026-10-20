@@ -24,10 +24,11 @@ export const DEFAULT_PLACEMENT: BoxPlacement = { x: 0.5, y: 1 - EDGE_GAP, edge: 
 export function offsetFor(placement: BoxPlacement, frame: Size, box: Size): BoxOffset {
   const line = placement.y * frame.height;
   const distance = placement.edge === 'bottom' ? frame.height - line : line;
+  const room = frame.height - box.height;
   return {
     left: clamp(placement.x * frame.width - box.width / 2, 0, frame.width - box.width),
     edge: placement.edge,
-    distance: clamp(distance, 0, frame.height - box.height),
+    distance: room < 0 && placement.edge === 'bottom' ? room : clamp(distance, 0, room),
   };
 }
 

@@ -40,6 +40,12 @@ describe('offsetFor', () => {
     });
   });
 
+  it('keeps the top of a box taller than the video inside it, even when anchored at the bottom', () => {
+    const tall = { width: 200, height: 600 };
+    const offset = offsetFor({ x: 0.5, y: 0.96, edge: 'bottom' }, PLAYER, tall);
+    expect(topOf(offset, PLAYER, tall)).toBe(0);
+  });
+
   it('pins a box wider or taller than the video to its top left corner', () => {
     expect(offsetFor({ x: 0.5, y: 0.5, edge: 'top' }, { width: 150, height: 40 }, BOX)).toEqual({
       left: 0,
