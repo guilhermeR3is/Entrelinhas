@@ -115,3 +115,42 @@ test('steps aside and gives the site its subtitles back when the person turns th
   );
   expect(modes).toEqual(['showing', 'disabled']);
 });
+
+test.describe('on a site whose player draws its own captions', () => {
+  test.beforeEach(async ({ context }) => {
+    const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+    await worker.evaluate(() =>
+      (
+        globalThis as unknown as {
+          chrome: { storage: { local: { set: (items: object) => Promise<void> } } };
+        }
+      ).chrome.storage.local.set({
+        siteRules: { 'localhost:4321': { captionSelector: 'div.fp-captions span.fp-line' } },
+      }),
+    );
+  });
+
+  test('shows the line the player draws with its translation and hides the original', async ({
+    page,
+  }) => {
+    await page.goto('/screen-captions.html?fake-translator=available');
+    await expect(page.locator(OVERLAY)).toBeAttached();
+    await seek(page, 1);
+    await expect(page.locator(ENGLISH)).toHaveText('Hello, this is the test page.');
+    await expect(page.locator(PORTUGUESE)).toHaveText('[pt] Hello, this is the test page.');
+    await expect(page.locator('.fp-line')).toHaveCSS('visibility', 'hidden');
+
+    await seek(page, 3);
+    await expect(page.locator(ENGLISH)).toHaveText('Cues can touch end to end.');
+    await expect(page.locator(PORTUGUESE)).toHaveText('[pt] Cues can touch end to end.');
+  });
+
+  test('clears the line in the gaps of the player', async ({ page }) => {
+    await page.goto('/screen-captions.html');
+    await expect(page.locator(OVERLAY)).toBeAttached();
+    await seek(page, 1);
+    await expect(page.locator(ENGLISH)).toBeVisible();
+    await seek(page, 6);
+    await expect(page.locator(`${OVERLAY} .subtitle`)).toBeHidden();
+  });
+});

@@ -10,7 +10,9 @@ import { StudyPreferenceStore } from '../study/study-preferences';
 import { PortugueseTranslation } from '../translation/portuguese-translation';
 import { findTranslatorApi } from '../translation/translator-api';
 import { NativeTrackAdapter } from '../universal/native-track-adapter';
+import { ScreenCaptionAdapter } from '../universal/screen-caption-adapter';
 import { isSiteDeactivated } from '../universal/site-message';
+import { readSiteRule } from '../universal/site-rules';
 import { coverVideo } from '../universal/video-cover';
 
 export default defineContentScript({
@@ -40,6 +42,7 @@ export default defineContentScript({
     );
 
     const preferences = await StudyPreferenceStore.load(browser.storage.local);
+    const rule = await readSiteRule(browser.storage.local, location.host);
     keys = preferences.current.keys;
     preferences.followKeys((chosen) => {
       keys = chosen;
@@ -59,7 +62,9 @@ export default defineContentScript({
         cover = coverVideo(container, video);
         session = new SubtitleSession(
           container,
-          new NativeTrackAdapter(video),
+          rule
+            ? new ScreenCaptionAdapter(video, rule.captionSelector)
+            : new NativeTrackAdapter(video),
           translation,
           preferences,
         );
