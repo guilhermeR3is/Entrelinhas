@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Cue } from '../subtitles/cue';
-import { DELAY_STEP_MS, FileTrackAdapter, MAX_DELAY_MS } from './file-track-adapter';
+import { FileTrackAdapter, MAX_DELAY_MS } from './file-track-adapter';
 
 type FakeTrack = { mode: TextTrackMode };
 
+const DELAY_STEP_MS = 100;
 const FILE_CUES: Cue[] = [
   { id: 0, startMs: 1000, endMs: 3000, text: 'Hello there.', lang: 'en' },
   { id: 1, startMs: 4000, endMs: 5000, text: 'Bye.', lang: 'en' },

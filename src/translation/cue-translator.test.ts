@@ -121,6 +121,29 @@ describe('CueTranslator', () => {
     ]);
   });
 
+  it('gives a shifted track the translations it already knows at once', async () => {
+    const { translator } = fakeTranslator();
+    const cueTranslator = new CueTranslator(translator, EN_PT);
+    const cues = cuesOf('Hello.', 'Bye.');
+    await translateAll(cueTranslator, cues);
+
+    const updates: SubtitleTrack[] = [];
+    const shifted = cues.map((cue) => ({
+      ...cue,
+      startMs: cue.startMs + 100,
+      endMs: cue.endMs + 100,
+    }));
+    const done = cueTranslator.translateTrack(shifted, {
+      playheadMs: () => 0,
+      onUpdate: (track) => updates.push(track),
+      signal: new AbortController().signal,
+    });
+
+    expect(updates.map((track) => track.cues.map((cue) => cue.startMs))).toEqual([[100, 1100]]);
+    await done;
+    expect(updates).toHaveLength(1);
+  });
+
   it('saves new translations for the next time', async () => {
     const { translator } = fakeTranslator();
     await translateAll(new CueTranslator(translator, EN_PT), cuesOf('Hello.', 'Bye.'));

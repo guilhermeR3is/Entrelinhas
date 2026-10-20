@@ -3,7 +3,7 @@ import type { TabStatus } from '../../tab-status';
 export type EntryState =
   TabStatus | { kind: 'denied'; site: string; origin: string } | { kind: 'error' };
 
-export type EntryAction = 'activate' | 'deactivate' | 'pick' | 'retry';
+export type EntryAction = 'activate' | 'deactivate' | 'pick' | 'load' | 'retry';
 
 export interface Entry {
   headword: string;
@@ -11,13 +11,14 @@ export interface Entry {
   definition: string;
   thumbTab: 'lit' | 'hidden';
   action: EntryAction | null;
-  secondaryAction: EntryAction | null;
+  links: readonly EntryAction[];
 }
 
 export const ACTION_LABELS: Record<EntryAction, string> = {
   activate: 'Ativar neste site',
   deactivate: 'Desativar neste site',
   pick: 'Escolher a legenda na tela',
+  load: 'Carregar arquivo de legenda',
   retry: 'Tentar de novo',
 };
 
@@ -30,7 +31,7 @@ export function entryFor(state: EntryState): Entry {
         definition: 'Ativa aqui.',
         thumbTab: 'lit',
         action: null,
-        secondaryAction: null,
+        links: [],
       };
     case 'available':
       return {
@@ -39,7 +40,7 @@ export function entryFor(state: EntryState): Entry {
         definition: 'Ative para ver a legenda dupla nos vídeos daqui.',
         thumbTab: 'hidden',
         action: 'activate',
-        secondaryAction: null,
+        links: [],
       };
     case 'enabled':
       return {
@@ -48,7 +49,7 @@ export function entryFor(state: EntryState): Entry {
         definition: 'Ativa aqui.',
         thumbTab: 'lit',
         action: 'pick',
-        secondaryAction: 'deactivate',
+        links: ['load', 'deactivate'],
       };
     case 'denied':
       return {
@@ -57,7 +58,7 @@ export function entryFor(state: EntryState): Entry {
         definition: 'O Chrome ficou sem a permissão. Pode tentar de novo.',
         thumbTab: 'hidden',
         action: 'activate',
-        secondaryAction: null,
+        links: [],
       };
     case 'unsupported':
       return {
@@ -66,7 +67,7 @@ export function entryFor(state: EntryState): Entry {
         definition: 'Funciona em sites com endereço https.',
         thumbTab: 'hidden',
         action: null,
-        secondaryAction: null,
+        links: [],
       };
     case 'error':
       return {
@@ -75,7 +76,7 @@ export function entryFor(state: EntryState): Entry {
         definition: 'Não deu para verificar agora.',
         thumbTab: 'hidden',
         action: 'retry',
-        secondaryAction: null,
+        links: [],
       };
   }
 }

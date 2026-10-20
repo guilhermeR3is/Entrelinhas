@@ -166,6 +166,24 @@
   text-align: center;
 }
 
+.delay-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+}
+
+.delay-label {
+  font-weight: 400;
+  color: var(--note);
+}
+
+.delay {
+  min-width: 4.5em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
 .english {
   margin: 0;
   font-weight: 600;
@@ -239,6 +257,71 @@
   translate: none;
 }
 
+.file-strip {
+  pointer-events: auto;
+}
+
+.file-name {
+  font-weight: 600;
+}
+
+.file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25em 0.5em;
+  margin: 0.25em 0 0;
+}
+
+.file-actions button {
+  min-height: 1.75em;
+  padding: 0.375em 0.5em;
+  border: 1px solid var(--note);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease-out,
+    scale 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .file-actions button:not(:disabled):hover {
+    background: var(--rule);
+  }
+}
+
+.file-actions button:not(:disabled):active {
+  scale: 0.97;
+}
+
+.file-actions button:focus-visible {
+  outline: 2px solid var(--paper);
+  outline-offset: 2px;
+}
+
+.file-actions button:disabled {
+  color: var(--note);
+  cursor: progress;
+}
+
+.escape-hint {
+  color: var(--note);
+}
+
+.drop-outline {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
 .picker-outline {
   position: absolute;
   border: 2px solid var(--accent);
@@ -252,7 +335,8 @@
     transition: opacity 160ms cubic-bezier(0.23, 1, 0.32, 1);
   }
 
-  .strip button {
+  .strip button,
+  .file-actions button {
     transition: background-color 120ms ease-out;
   }
 
@@ -260,7 +344,8 @@
     transition: none;
   }
 
-  .strip button:not([aria-disabled='true']):active {
+  .strip button:not([aria-disabled='true']):active,
+  .file-actions button:not(:disabled):active {
     scale: none;
   }
 }

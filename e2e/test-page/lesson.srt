@@ -1,0 +1,7 @@
+1
+00:00:00,500 --> 00:00:02,000
+This line comes from a file.
+
+2
+00:00:02,500 --> 00:00:04,000
+Nobody drew it on the page.

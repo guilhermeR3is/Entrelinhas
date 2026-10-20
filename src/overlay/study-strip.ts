@@ -2,9 +2,22 @@ import { MAX_SPEED, MIN_SPEED } from '../study/playback-speed';
 import { DEFAULT_KEYS, keyLabel, type StudyCommand, type StudyKeys } from '../study/study-keys';
 
 const SPEED_FORMAT = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
+const DELAY_FORMAT = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+  signDisplay: 'exceptZero',
+});
+
+export type DelayCommand = 'earlier' | 'later';
+export type StripCommand = StudyCommand | DelayCommand;
 
 export function formatSpeed(speed: number): string {
   return `${SPEED_FORMAT.format(speed)}x`;
+}
+
+export function formatDelay(delayMs: number): string {
+  if (delayMs === 0) return '0 s';
+  return `${DELAY_FORMAT.format(delayMs / 1000).replace('-', '−')} s`;
 }
 
 export class StudyStrip {
@@ -16,11 +29,13 @@ export class StudyStrip {
   private readonly repeat: HTMLButtonElement;
   private readonly blur: HTMLButtonElement;
   private readonly speedValue: HTMLOutputElement;
+  private readonly delayGroup: HTMLElement;
+  private readonly delayValue: HTMLOutputElement;
   private readonly buttonsByCommand = new Map<StudyCommand, HTMLButtonElement>();
 
   constructor(
     private readonly document: Document,
-    onCommand: (command: StudyCommand) => void,
+    onCommand: (command: StripCommand) => void,
   ) {
     this.handle = document.createElement('button');
     this.handle.type = 'button';
@@ -41,6 +56,22 @@ export class StudyStrip {
     this.speedValue = document.createElement('output');
     this.speedValue.className = 'speed';
     this.speedValue.setAttribute('aria-label', 'Velocidade');
+    this.delayValue = document.createElement('output');
+    this.delayValue.className = 'delay';
+    this.delayValue.setAttribute('aria-label', 'Atraso da legenda');
+    const delayLabel = document.createElement('span');
+    delayLabel.className = 'delay-label';
+    delayLabel.textContent = 'Atraso';
+    delayLabel.setAttribute('aria-hidden', 'true');
+    this.delayGroup = document.createElement('span');
+    this.delayGroup.className = 'delay-group separated';
+    this.delayGroup.hidden = true;
+    this.delayGroup.append(
+      delayLabel,
+      this.delayButton('−', 'earlier', 'Adiantar a legenda', onCommand),
+      this.delayValue,
+      this.delayButton('+', 'later', 'Atrasar a legenda', onCommand),
+    );
 
     this.element = document.createElement('div');
     this.element.className = 'strip';
@@ -55,6 +86,7 @@ export class StudyStrip {
       this.autoPause,
       this.repeat,
       this.blur,
+      this.delayGroup,
     );
     this.element.addEventListener('mousedown', (event) => {
       event.preventDefault();
@@ -76,6 +108,11 @@ export class StudyStrip {
     this.speedValue.textContent = formatSpeed(speed);
     this.slower.setAttribute('aria-disabled', String(speed <= MIN_SPEED));
     this.faster.setAttribute('aria-disabled', String(speed >= MAX_SPEED));
+  }
+
+  setCaptionDelay(delayMs: number | null): void {
+    this.delayGroup.hidden = delayMs === null;
+    this.delayValue.textContent = delayMs === null ? '' : formatDelay(delayMs);
   }
 
   setAutoPause(enabled: boolean): void {
@@ -106,6 +143,22 @@ export class StudyStrip {
       if (button.getAttribute('aria-disabled') !== 'true') onCommand(command);
     });
     this.buttonsByCommand.set(command, button);
+    return button;
+  }
+
+  private delayButton(
+    text: string,
+    command: DelayCommand,
+    label: string,
+    onCommand: (command: DelayCommand) => void,
+  ): HTMLButtonElement {
+    const button = this.document.createElement('button');
+    button.type = 'button';
+    button.textContent = text;
+    button.setAttribute('aria-label', label);
+    button.addEventListener('click', () => {
+      onCommand(command);
+    });
     return button;
   }
 }

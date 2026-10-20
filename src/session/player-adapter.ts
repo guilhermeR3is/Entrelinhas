@@ -9,6 +9,7 @@ export type PlayerEvents = {
 
 export interface PlayerAdapter {
   readonly player: Element;
+  readonly delayMs?: number;
   start(events: PlayerEvents): void;
   stop(): void;
   video(): HTMLVideoElement | null;
@@ -20,4 +21,5 @@ export interface PlayerAdapter {
   englishTrack(): SubtitleTrack | null;
   officialPortugueseTrack(): SubtitleTrack | null;
   hideSiteCaptions(hidden: boolean): void;
+  shiftDelay?(byMs: number): number;
 }

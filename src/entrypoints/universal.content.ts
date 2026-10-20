@@ -11,10 +11,19 @@ import { PortugueseTranslation } from '../translation/portuguese-translation';
 import { findTranslatorApi } from '../translation/translator-api';
 import { NativeTrackAdapter } from '../universal/native-track-adapter';
 import { ScreenCaptionAdapter } from '../universal/screen-caption-adapter';
-import { PICK_CAPTION, SITE_DEACTIVATED, readSiteMessage } from '../universal/site-message';
+import {
+  LOAD_FILE,
+  PICK_CAPTION,
+  SITE_DEACTIVATED,
+  readSiteMessage,
+} from '../universal/site-message';
 import { readSiteRule, saveSiteRule, type SiteRule } from '../universal/site-rules';
 import { captionSelector } from '../universal/caption-selector';
 import { CaptionPicker } from '../overlay/caption-picker';
+import { FileLoader } from '../overlay/file-loader';
+import type { Cue } from '../subtitles/cue';
+import { readSubtitleFile } from '../subtitles/subtitle-file';
+import { FileTrackAdapter } from '../universal/file-track-adapter';
 import { coverVideo } from '../universal/video-cover';
 
 export default defineContentScript({
@@ -24,6 +33,8 @@ export default defineContentScript({
     let session: SubtitleSession | undefined;
     let sessionBox: HTMLElement | undefined;
     let picker: CaptionPicker | undefined;
+    let loader: FileLoader | undefined;
+    let fileCues: readonly Cue[] | null = null;
     let mounted: { container: HTMLElement; video: HTMLVideoElement } | undefined;
     let rule: SiteRule | null = null;
     let cover: ResizeObserver | undefined;
@@ -52,11 +63,14 @@ export default defineContentScript({
       if (!mounted) return;
       sessionBox = document.createElement('div');
       mounted.container.append(sessionBox);
+      const { video } = mounted;
       session = new SubtitleSession(
         sessionBox,
-        rule
-          ? new ScreenCaptionAdapter(mounted.video, rule.captionSelector)
-          : new NativeTrackAdapter(mounted.video),
+        fileCues
+          ? new FileTrackAdapter(video, fileCues)
+          : rule
+            ? new ScreenCaptionAdapter(video, rule.captionSelector)
+            : new NativeTrackAdapter(video),
         translation,
         preferences,
       );
@@ -75,8 +89,19 @@ export default defineContentScript({
       rule = learned;
       return true;
     };
+    const loadFile = async (file: File) => {
+      fileCues = await readSubtitleFile(file, 'en');
+    };
+    const openFileLoader = () => {
+      if (!mounted || picker || loader) return;
+      stopSession();
+      loader = new FileLoader(mounted.container, mounted.video, loadFile, () => {
+        loader = undefined;
+        startSession();
+      });
+    };
     const pickCaption = () => {
-      if (!mounted || picker) return;
+      if (!mounted || picker || loader) return;
       stopSession();
       picker = new CaptionPicker(mounted.container, mounted.video, learn, () => {
         picker = undefined;
@@ -92,6 +117,7 @@ export default defineContentScript({
       const type = readSiteMessage(message);
       if (type === SITE_DEACTIVATED.type) ctx.abort();
       if (type === PICK_CAPTION.type) pickCaption();
+      if (type === LOAD_FILE.type) openFileLoader();
       sendResponse({ received: type !== null });
     };
     browser.runtime.onMessage.addListener(answerPopup);
@@ -117,6 +143,8 @@ export default defineContentScript({
       onRemove: () => {
         picker?.close();
         picker = undefined;
+        loader?.close();
+        loader = undefined;
         stopSession();
         cover?.disconnect();
         mounted = undefined;

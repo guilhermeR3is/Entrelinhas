@@ -142,8 +142,62 @@ describe('SubtitleSession with any player adapter', () => {
     expect(find('.status').textContent).toBe('');
   });
 
+  it('has no caption delay when the adapter cannot shift its captions', () => {
+    expect(find('.delay-group').hidden).toBe(true);
+  });
+
   it('stops the adapter with the session', () => {
     session.stop();
     expect(adapter.stopped).toBe(true);
+  });
+});
+
+describe('SubtitleSession with captions that can be shifted', () => {
+  it('moves the captions 100 ms per press and shows the new delay', async () => {
+    const { window } = new JSDOM('<div id="player"><video></video></div><div id="overlay"></div>');
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe = vi.fn();
+      },
+    );
+    vi.stubGlobal('AbortController', window.AbortController);
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+    vi.stubGlobal('cancelAnimationFrame', () => undefined);
+    const player = window.document.querySelector('#player');
+    const overlay = window.document.querySelector('#overlay');
+    if (!player || !overlay) throw new Error('Missing markup');
+    const adapter = Object.assign(new FakePlayer(player), {
+      delayMs: 0,
+      shiftDelay(byMs: number) {
+        this.delayMs += byMs;
+        return this.delayMs;
+      },
+    });
+    const storage = {
+      get: () => Promise.resolve({}),
+      set: () => Promise.resolve(),
+      onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
+    };
+    const preferences = await StudyPreferenceStore.load(storage as unknown as PreferenceStorage);
+    const session = new SubtitleSession(
+      overlay,
+      adapter,
+      new PortugueseTranslation(() => undefined),
+      preferences,
+    );
+    const [earlier, later] = Array.from(
+      overlay.querySelectorAll<HTMLButtonElement>('.delay-group button'),
+    );
+    later?.click();
+    later?.click();
+    later?.click();
+    earlier?.click();
+
+    expect(adapter.delayMs).toBe(200);
+    expect(overlay.querySelector('.delay')?.textContent).toBe('+0,2 s');
+    expect(overlay.querySelector<HTMLElement>('.delay-group')?.hidden).toBe(false);
+    session.stop();
+    vi.unstubAllGlobals();
   });
 });

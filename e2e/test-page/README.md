@@ -19,3 +19,6 @@ ffmpeg -f lavfi -i testsrc2=duration=12:size=480x270:rate=10 \
 
 O formato é WebM com VP9 porque o Chromium usado pelo Playwright não inclui codecs proprietários
 como o H.264.
+
+`plain-video.html` mostra o mesmo vídeo sem nenhuma legenda; os testes carregam nele o arquivo
+`lesson.srt`, escrito à mão, como faria quem baixa uma legenda separada.

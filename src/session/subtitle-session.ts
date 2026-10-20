@@ -1,3 +1,4 @@
+import type { DelayCommand } from '../overlay/study-strip';
 import {
   type OverlayNotice,
   SubtitleOverlay,
@@ -12,6 +13,7 @@ import type { PortugueseTranslation } from '../translation/portuguese-translatio
 import type { PlayerAdapter } from './player-adapter';
 
 const NOTICE_DELAY_S = 2;
+const DELAY_STEP_MS = 100;
 const NO_CUES: readonly Cue[] = Object.freeze([]);
 const STUDY_STATUSES = new Set<CaptionStatus>(['full-track', 'screen']);
 const NOTICES: Partial<Record<CaptionStatus, OverlayNotice>> = {
@@ -42,7 +44,8 @@ export class SubtitleSession {
     this.overlay = new SubtitleOverlay(
       container,
       (command) => {
-        this.handleCommand(command);
+        if (command === 'earlier' || command === 'later') this.shiftDelay(command);
+        else this.handleCommand(command);
       },
       preferences.current.placement,
       (placement) => {
@@ -50,6 +53,7 @@ export class SubtitleSession {
       },
     );
     this.overlay.setKeys(preferences.current.keys);
+    this.overlay.setCaptionDelay(adapter.shiftDelay ? (adapter.delayMs ?? 0) : null);
     adapter.start({
       onCaptionsChange: this.render,
       onControlsLift: (liftPx) => {
@@ -118,6 +122,12 @@ export class SubtitleSession {
     cancelAnimationFrame(this.frame);
     this.adapter.stop();
     this.overlay.hideNotice();
+  }
+
+  private shiftDelay(command: DelayCommand): void {
+    if (!this.adapter.shiftDelay) return;
+    const delayMs = this.adapter.shiftDelay(command === 'later' ? DELAY_STEP_MS : -DELAY_STEP_MS);
+    this.overlay.setCaptionDelay(delayMs);
   }
 
   private translatedCues(

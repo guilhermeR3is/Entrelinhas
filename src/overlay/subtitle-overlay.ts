@@ -1,4 +1,4 @@
-import type { StudyCommand, StudyKeys } from '../study/study-keys';
+import type { StudyKeys } from '../study/study-keys';
 import { type Cue, spokenLength } from '../subtitles/cue';
 import {
   DEFAULT_PLACEMENT,
@@ -10,7 +10,7 @@ import {
   type BoxPlacement,
   type Size,
 } from './box-placement';
-import { StudyStrip } from './study-strip';
+import { type StripCommand, StudyStrip } from './study-strip';
 
 export type OverlayNotice = 'captions-off' | 'other-language' | 'unreadable';
 export type TranslationState =
@@ -97,7 +97,7 @@ export class SubtitleOverlay {
 
   constructor(
     container: Element,
-    onCommand: (command: StudyCommand) => void = () => undefined,
+    onCommand: (command: StripCommand) => void = () => undefined,
     placement: BoxPlacement = DEFAULT_PLACEMENT,
     private readonly onPlacementChange: (placement: BoxPlacement) => void = () => undefined,
   ) {
@@ -168,6 +168,10 @@ export class SubtitleOverlay {
 
   setKeys(keys: StudyKeys): void {
     this.strip.setKeys(keys);
+  }
+
+  setCaptionDelay(delayMs: number | null): void {
+    this.strip.setCaptionDelay(delayMs);
   }
 
   setAutoPause(enabled: boolean): void {

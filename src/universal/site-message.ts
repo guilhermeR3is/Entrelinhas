@@ -2,10 +2,12 @@ import * as z from 'zod/mini';
 
 export const SITE_DEACTIVATED = { type: 'projeto-bilingue:site-deactivated' } as const;
 export const PICK_CAPTION = { type: 'projeto-bilingue:pick-caption' } as const;
+export const LOAD_FILE = { type: 'projeto-bilingue:load-file' } as const;
 
 const SiteMessage = z.discriminatedUnion('type', [
   z.object({ type: z.literal(SITE_DEACTIVATED.type) }),
   z.object({ type: z.literal(PICK_CAPTION.type) }),
+  z.object({ type: z.literal(LOAD_FILE.type) }),
 ]);
 
 export type SiteMessageType = z.infer<typeof SiteMessage>['type'];

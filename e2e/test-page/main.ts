@@ -26,7 +26,9 @@ const handleCommand = (command: StudyCommand): boolean => {
   controls.handle(command);
   return true;
 };
-const overlay = new SubtitleOverlay(overlayContainer, handleCommand);
+const overlay = new SubtitleOverlay(overlayContainer, (command) => {
+  if (command !== 'earlier' && command !== 'later') handleCommand(command);
+});
 const controls = new StudyControls(video, overlay, () => false);
 listenForStudyKeys(window, handleCommand, new AbortController().signal);
 

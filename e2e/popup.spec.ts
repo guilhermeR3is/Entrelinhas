@@ -15,7 +15,7 @@ test('reports a page without https as unsupported with the real tabs API', async
   await expect(popup.getByRole('heading', { name: 'Esta página' })).toBeVisible();
   await expect(popup.getByRole('status')).toContainText('não compatível');
   await expect(popup.getByRole('status')).toContainText('Funciona em sites com endereço https.');
-  await expect(popup.getByRole('button')).toBeHidden();
+  await expect(popup.locator('button:visible')).toHaveCount(0);
   await expect(popup.locator('.thumb-tab')).toBeHidden();
 });
 
@@ -72,6 +72,36 @@ test('starts picking the caption in the tab and gets out of the way', async ({
   expect(
     await popup.evaluate(() => (window as unknown as { sentToTabs: unknown[] }).sentToTabs),
   ).toEqual([[42, { type: 'projeto-bilingue:pick-caption' }]]);
+});
+
+test('hands loading a subtitle file over to the tab', async ({ context, popupUrl }) => {
+  const popup = await context.newPage();
+  await stubActiveTab(popup, { url: 'https://www.example.com/', id: 42 });
+  await stubPermissions(popup, { granted: ['https://www.example.com/*'] });
+  await popup.addInitScript(() => {
+    const sent: unknown[] = [];
+    Object.assign(window, { sentToTabs: sent });
+    const tabs = (globalThis as unknown as { chrome: { tabs: object } }).chrome.tabs;
+    Object.defineProperty(tabs, 'sendMessage', {
+      value: (tabId: number, message: unknown) => {
+        sent.push([tabId, message]);
+        return Promise.resolve({ received: true });
+      },
+    });
+    window.close = () => {
+      document.documentElement.dataset.closed = 'true';
+    };
+  });
+  await popup.goto(popupUrl);
+
+  const links = popup.locator('.entry-link:not([hidden])');
+  await expect(links).toHaveText(['Carregar arquivo de legenda', 'Desativar neste site']);
+  await popup.getByRole('button', { name: 'Carregar arquivo de legenda' }).click();
+
+  await expect(popup.locator('html')).toHaveAttribute('data-closed', 'true');
+  expect(
+    await popup.evaluate(() => (window as unknown as { sentToTabs: unknown[] }).sentToTabs),
+  ).toEqual([[42, { type: 'projeto-bilingue:load-file' }]]);
 });
 
 test('lets the person try again after saying no to Chrome', async ({ context, popupUrl }) => {

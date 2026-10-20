@@ -33,18 +33,25 @@ export class CueTranslator {
     };
 
     const stopped = () => signal.aborted;
-    const texts = [...new Set(cues.map((cue) => cue.text))];
-    const cached = await findCachedTranslations(this.pair, texts);
-    if (stopped()) return;
-    texts.forEach((text, index) => {
-      const translation = cached[index];
-      if (translation != null) this.known.set(text, translation);
-    });
-    for (const cue of cues) {
-      const translation = this.known.get(cue.text);
-      if (translation !== undefined) keep(cue, translation);
+    const keepKnown = () => {
+      const before = translated.size;
+      for (const cue of cues) {
+        const translation = this.known.get(cue.text);
+        if (translation !== undefined) keep(cue, translation);
+      }
+      if (translated.size > before) publish();
+    };
+    keepKnown();
+    const texts = [...new Set(cues.map((cue) => cue.text))].filter((text) => !this.known.has(text));
+    if (texts.length > 0) {
+      const cached = await findCachedTranslations(this.pair, texts);
+      if (stopped()) return;
+      texts.forEach((text, index) => {
+        const translation = cached[index];
+        if (translation != null) this.known.set(text, translation);
+      });
+      keepKnown();
     }
-    if (translated.size > 0) publish();
 
     let remaining = cues.filter((cue) => !translated.has(cue.id));
     while (remaining.length > 0 && !stopped()) {

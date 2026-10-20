@@ -111,6 +111,10 @@ body {
   transition: text-decoration-color 120ms ease;
 }
 
+.entry-link + .entry-link {
+  margin-top: var(--space-2);
+}
+
 .entry-link:disabled {
   color: var(--note);
   cursor: progress;

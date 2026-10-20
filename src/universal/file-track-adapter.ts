@@ -3,7 +3,6 @@ import type { CaptionStatus } from '../subtitles/caption-status';
 import type { Cue } from '../subtitles/cue';
 import { SubtitleTrack } from '../subtitles/subtitle-track';
 
-export const DELAY_STEP_MS = 100;
 export const MAX_DELAY_MS = 10 * 60 * 1000;
 
 export class FileTrackAdapter implements PlayerAdapter {

@@ -4,7 +4,7 @@ import './style.css';
 import { browser } from 'wxt/browser';
 import { logger } from '../../logger';
 import { tabStatusFromUrl } from '../../tab-status';
-import { PICK_CAPTION, SITE_DEACTIVATED } from '../../universal/site-message';
+import { LOAD_FILE, PICK_CAPTION, SITE_DEACTIVATED } from '../../universal/site-message';
 import { ACTION_LABELS, entryFor, thumbTabLetter, type EntryState } from './entry';
 
 type SiteState = Extract<EntryState, { origin: string }>;
@@ -26,7 +26,7 @@ const headword = element('.headword');
 const wordClass = element('.word-class');
 const definition = element('.definition');
 const action = element('.entry-action');
-const actionLink = element('.entry-link');
+const actionLinks = Array.from(document.querySelectorAll<HTMLElement>('.entry-link'));
 const thumbTab = element('.thumb-tab');
 const shortcutsLink = element('.shortcuts-link');
 let current: CurrentTab = { state: { kind: 'error' }, tabId: undefined };
@@ -51,7 +51,7 @@ function breakAtDots(text: string): Node[] {
 }
 
 function setBusy(busy: boolean): void {
-  for (const control of [action, actionLink]) {
+  for (const control of [action, ...actionLinks]) {
     control.toggleAttribute('disabled', busy);
     if (busy) control.setAttribute('aria-busy', 'true');
     else control.removeAttribute('aria-busy');
@@ -69,9 +69,12 @@ function show(state: EntryState, { animate }: { animate: boolean }): void {
   action.hidden = view.action === null;
   action.dataset.action = view.action ?? '';
   action.textContent = view.action ? ACTION_LABELS[view.action] : '';
-  actionLink.hidden = view.secondaryAction === null;
-  actionLink.dataset.action = view.secondaryAction ?? '';
-  actionLink.textContent = view.secondaryAction ? ACTION_LABELS[view.secondaryAction] : '';
+  actionLinks.forEach((link, index) => {
+    const linkAction = view.links[index];
+    link.hidden = linkAction === undefined;
+    link.dataset.action = linkAction ?? '';
+    link.textContent = linkAction ? ACTION_LABELS[linkAction] : '';
+  });
   setBusy(false);
   checking.hidden = true;
   entry.hidden = false;
@@ -139,7 +142,7 @@ async function deactivate({ site, origin }: SiteState): Promise<void> {
   show({ kind: 'available', site, origin }, { animate: true });
 }
 
-async function pickCaption(): Promise<void> {
+async function handOverToTab(message: typeof PICK_CAPTION | typeof LOAD_FILE): Promise<void> {
   const { tabId } = current;
   if (tabId === undefined) {
     show({ kind: 'error' }, { animate: true });
@@ -147,10 +150,10 @@ async function pickCaption(): Promise<void> {
   }
   setBusy(true);
   try {
-    await browser.tabs.sendMessage(tabId, PICK_CAPTION);
+    await browser.tabs.sendMessage(tabId, message);
     window.close();
   } catch (error) {
-    logger.error('Could not start picking the caption', error);
+    logger.error('Could not hand the task over to the tab', error);
     show({ kind: 'error' }, { animate: true });
   }
 }
@@ -164,7 +167,8 @@ function runAction(chosen: string | undefined): void {
   if (!('origin' in state)) return;
   if (chosen === 'activate') void activate(state);
   if (chosen === 'deactivate') void deactivate(state);
-  if (chosen === 'pick') void pickCaption();
+  if (chosen === 'pick') void handOverToTab(PICK_CAPTION);
+  if (chosen === 'load') void handOverToTab(LOAD_FILE);
 }
 
 async function openShortcuts(): Promise<void> {
@@ -181,7 +185,7 @@ shortcutsLink.addEventListener('click', (event) => {
   event.preventDefault();
   void openShortcuts();
 });
-for (const control of [action, actionLink]) {
+for (const control of [action, ...actionLinks]) {
   control.addEventListener('click', () => {
     runAction(control.dataset.action);
   });

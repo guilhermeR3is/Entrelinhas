@@ -411,6 +411,34 @@ describe('SubtitleOverlay', () => {
       expect(reachedPlayer).not.toHaveBeenCalled();
     });
 
+    it('shows the caption delay only when the captions come from a file', () => {
+      expect(find('.delay-group').hidden).toBe(true);
+      overlay.setCaptionDelay(0);
+      expect(find('.delay-group').hidden).toBe(false);
+      expect(find('.delay').textContent).toBe('0 s');
+      overlay.setCaptionDelay(300);
+      expect(find('.delay').textContent).toBe('+0,3 s');
+      overlay.setCaptionDelay(-1200);
+      expect(find('.delay').textContent).toBe('−1,2 s');
+      overlay.setCaptionDelay(-600_000);
+      expect(find('.delay').textContent).toBe('−600,0 s');
+      overlay.setCaptionDelay(null);
+      expect(find('.delay-group').hidden).toBe(true);
+    });
+
+    it('names the delay buttons by what they do to the caption', () => {
+      overlay.setCaptionDelay(0);
+      const [earlier, later] = Array.from(
+        container.querySelectorAll<HTMLButtonElement>('.delay-group button'),
+      );
+      expect(earlier?.getAttribute('aria-label')).toBe('Adiantar a legenda');
+      expect(later?.getAttribute('aria-label')).toBe('Atrasar a legenda');
+      expect(find('.delay').getAttribute('aria-label')).toBe('Atraso da legenda');
+      earlier?.click();
+      later?.click();
+      expect(onCommand.mock.calls).toEqual([['earlier'], ['later']]);
+    });
+
     it('keeps the keys pressed on a control away from the player', () => {
       const reachedPlayer = vi.fn();
       container.addEventListener('keydown', reachedPlayer);

@@ -19,7 +19,7 @@ describe('entryFor', () => {
       definition: 'Ativa aqui.',
       thumbTab: 'lit',
       action: null,
-      secondaryAction: null,
+      links: [],
     });
   });
 
@@ -30,17 +30,17 @@ describe('entryFor', () => {
     expect(entry.thumbTab).toBe('hidden');
   });
 
-  it('lights the thumb tab on a site the person turned on, to pick its caption or turn it off', () => {
+  it('lights the thumb tab on a site the person turned on, to pick its caption, load a file or turn it off', () => {
     const entry = entryFor({ kind: 'enabled', site: 'example.com', origin: ORIGIN });
     expect(entry).toMatchObject({ wordClass: 'ativado por você', definition: 'Ativa aqui.' });
     expect(entry.action).toBe('pick');
-    expect(entry.secondaryAction).toBe('deactivate');
+    expect(entry.links).toEqual(['load', 'deactivate']);
     expect(entry.thumbTab).toBe('lit');
   });
 
-  it('offers a second action only on a site the person turned on', () => {
+  it('offers links only on a site the person turned on', () => {
     for (const state of ALL_STATES) {
-      expect(entryFor(state).secondaryAction !== null).toBe(state.kind === 'enabled');
+      expect(entryFor(state).links.length > 0).toBe(state.kind === 'enabled');
     }
   });
 
