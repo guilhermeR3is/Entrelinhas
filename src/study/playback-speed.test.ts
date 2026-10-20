@@ -55,10 +55,12 @@ describe('PlaybackSpeed', () => {
   let clockMs: number;
   let personChangedSpeed: boolean;
   const onChange = vi.fn();
+  const onPersonChoice = vi.fn();
 
   function createSpeed(): PlaybackSpeed {
     return new PlaybackSpeed(video, {
       onChange,
+      onPersonChoice,
       personChangedSpeed: () => personChangedSpeed,
       now: () => clockMs,
     });
@@ -69,6 +71,7 @@ describe('PlaybackSpeed', () => {
     clockMs = 0;
     personChangedSpeed = false;
     onChange.mockClear();
+    onPersonChoice.mockClear();
   });
 
   it('starts from the speed the video already has', () => {
@@ -126,6 +129,7 @@ describe('PlaybackSpeed', () => {
     expect(video.playbackRate).toBe(1.5);
     expect(speed.speed).toBe(1.5);
     expect(onChange).toHaveBeenLastCalledWith(1.5);
+    expect(onPersonChoice).toHaveBeenCalledExactlyOnceWith(1.5);
   });
 
   it('gives up when the player undoes the speed three times within two seconds', async () => {
@@ -140,6 +144,7 @@ describe('PlaybackSpeed', () => {
     expect(video.playbackRate).toBe(1);
     expect(speed.speed).toBe(1);
     expect(onChange).toHaveBeenLastCalledWith(1);
+    expect(onPersonChoice).not.toHaveBeenCalled();
   });
 
   it('keeps putting the speed back when the resets are far apart', async () => {

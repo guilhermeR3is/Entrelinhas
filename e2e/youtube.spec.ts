@@ -388,3 +388,29 @@ test('keeps the place of the box in proportion in fullscreen', async ({ page }) 
   const playerHeight = await page.evaluate(() => window.innerHeight);
   expect(fullscreenTop.top).toBeCloseTo(playerHeight * 0.04, 0);
 });
+
+test('remembers the speed, the switches and the place of the box on the next visit', async ({
+  page,
+}) => {
+  await open(page, 'video-a');
+  await page.keyboard.press('z');
+  await page.keyboard.press('p');
+  await page.keyboard.press('b');
+  await expect.poll(() => gapAboveControls(page)).toBe(8);
+  await dragHandle(page, { x: 200, y: 120 });
+  const moved = await boxInPlayer(page);
+
+  await open(page, 'video-a');
+  await expect.poll(() => speed(page)).toBe(0.95);
+  await expect(page.locator(`${STRIP} .speed`)).toHaveText('0,95x');
+  await expect(page.getByRole('button', { name: 'Pausar no fim' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByRole('button', { name: 'Borrar português' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect.poll(async () => (await boxInPlayer(page)).top).toBeCloseTo(moved.top, 0);
+  expect((await boxInPlayer(page)).centerX).toBeCloseTo(moved.centerX, 2);
+});

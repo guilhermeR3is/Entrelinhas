@@ -87,14 +87,20 @@ export class SubtitleOverlay {
   private stripFocused = false;
   private stripFlashTimer: ReturnType<typeof setTimeout> | undefined;
   private revealedText: string | null = null;
-  private placement = DEFAULT_PLACEMENT;
+  private placement: BoxPlacement;
   private offset: BoxOffset | null = null;
   private shownTop = 0;
   private controlsLift = 0;
   private drag: BoxDrag | null = null;
   private clickEndsDrag = false;
 
-  constructor(container: Element, onCommand: (command: StudyCommand) => void = () => undefined) {
+  constructor(
+    container: Element,
+    onCommand: (command: StudyCommand) => void = () => undefined,
+    placement: BoxPlacement = DEFAULT_PLACEMENT,
+    private readonly onPlacementChange: (placement: BoxPlacement) => void = () => undefined,
+  ) {
+    this.placement = placement;
     this.document = container.ownerDocument;
     this.english = this.element('p', 'english');
     this.english.lang = 'en';
@@ -265,6 +271,7 @@ export class SubtitleOverlay {
     const endDrag = (event: PointerEvent): void => {
       if (this.drag?.pointerId !== event.pointerId) return;
       this.clickEndsDrag = this.drag.moved;
+      if (this.drag.moved) this.onPlacementChange(this.placement);
       this.drag = null;
       this.box.classList.remove('dragging');
       this.place();
@@ -277,6 +284,7 @@ export class SubtitleOverlay {
         return;
       }
       this.placeWithoutTransition(toggledEdge(this.placement));
+      this.onPlacementChange(this.placement);
     });
     handle.addEventListener('keydown', (event) => {
       const step = ARROW_STEPS[event.key];
@@ -287,6 +295,7 @@ export class SubtitleOverlay {
         this.offset.left + step.x * KEY_STEP * frame.width,
         this.shownTop + step.y * KEY_STEP * frame.height,
       );
+      this.onPlacementChange(this.placement);
     });
   }
 

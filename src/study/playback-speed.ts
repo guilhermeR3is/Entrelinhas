@@ -10,6 +10,7 @@ type SpeedTarget = EventTarget & { playbackRate: number };
 
 export type PlaybackSpeedOptions = {
   onChange?: (speed: number) => void;
+  onPersonChoice?: (speed: number) => void;
   personChangedSpeed: () => boolean;
   now?: () => number;
 };
@@ -74,10 +75,12 @@ export class PlaybackSpeed {
   private readonly follow = (): void => {
     const actual = this.video.playbackRate;
     if (this.held || actual === this.chosen) return;
-    if (this.options.personChangedSpeed() || this.playerKeepsResetting()) {
+    const personChose = this.options.personChangedSpeed();
+    if (personChose || this.playerKeepsResetting()) {
       this.chosen = actual;
       this.resetTimes = [];
       this.options.onChange?.(actual);
+      if (personChose) this.options.onPersonChoice?.(actual);
       return;
     }
     this.video.playbackRate = this.chosen;

@@ -450,6 +450,28 @@ describe('SubtitleOverlay', () => {
       expect(find('.box').style.bottom).toBe('20px');
     });
 
+    it('starts where it was left and reports each move the person finishes', () => {
+      const onPlacementChange = vi.fn();
+      container = new JSDOM().window.document.body;
+      overlay = new SubtitleOverlay(
+        container,
+        undefined,
+        { x: 0.2, y: 0.1, edge: 'top' },
+        onPlacementChange,
+      );
+      layOut({ width: 1000, height: 500 });
+      expect(find('.box').style.left).toBe('100px');
+      expect(find('.box').style.top).toBe('50px');
+
+      press('ArrowDown');
+      find('.handle').click();
+      press('Enter');
+      expect(onPlacementChange.mock.calls).toEqual([
+        [{ x: 0.2, y: 0.15, edge: 'top' }],
+        [{ x: 0.2, y: 0.96, edge: 'bottom' }],
+      ]);
+    });
+
     it('labels the handle and tells how to move it from the keyboard', () => {
       const handle = find('.handle');
       expect(handle.getAttribute('aria-label')).toBe('Mover a legenda');

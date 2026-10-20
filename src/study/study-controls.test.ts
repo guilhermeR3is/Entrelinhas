@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SubtitleOverlay } from '../overlay/subtitle-overlay';
 import { SubtitleTrack } from '../subtitles/subtitle-track';
 import { StudyControls } from './study-controls';
+import { DEFAULT_PREFERENCES, type StudyChoices } from './study-preferences';
 
 class FakeVideo extends EventTarget {
   playbackRate = 1;
@@ -49,6 +50,55 @@ describe('StudyControls', () => {
     const overlay = new SubtitleOverlay(container);
     video = new FakeVideo();
     controls = new StudyControls(video as unknown as HTMLVideoElement, overlay, () => false);
+  });
+
+  describe('remembering choices', () => {
+    function createWith(choices: Partial<StudyChoices>): ReturnType<typeof vi.fn> {
+      const onChoice = vi.fn();
+      controls.stop();
+      container = new JSDOM().window.document.body;
+      video = new FakeVideo();
+      controls = new StudyControls(
+        video as unknown as HTMLVideoElement,
+        new SubtitleOverlay(container),
+        () => false,
+        { ...DEFAULT_PREFERENCES, ...choices },
+        onChoice,
+      );
+      return onChoice;
+    }
+
+    it('starts with the speed, auto-pause and blur that were saved', () => {
+      createWith({ speed: 0.8, autoPause: true, blurred: true });
+      expect(video.playbackRate).toBe(0.8);
+      expect(container.querySelector('.speed')?.textContent).toBe('0,8x');
+      expect(autoPauseButton().getAttribute('aria-pressed')).toBe('true');
+      expect(container.querySelector('.box')?.classList.contains('blurred')).toBe(true);
+    });
+
+    it('reports each choice the person makes', () => {
+      const onChoice = createWith({});
+      controls.handle('faster');
+      controls.handle('auto-pause');
+      controls.handle('blur');
+      controls.handle('blur');
+      expect(onChoice.mock.calls).toEqual([
+        [{ speed: 1.05 }],
+        [{ autoPause: true }],
+        [{ blurred: true }],
+        [{ blurred: false }],
+      ]);
+    });
+
+    it('does not keep the slow speed of Shift+R as a choice', () => {
+      const onChoice = createWith({});
+      controls.followSentences(TRACK, 500);
+      controls.handle('repeat-slow');
+      expect(video.playbackRate).toBe(0.75);
+      controls.handle('repeat');
+      controls.handle('reveal');
+      expect(onChoice).not.toHaveBeenCalled();
+    });
   });
 
   function autoPauseButton(): HTMLElement {

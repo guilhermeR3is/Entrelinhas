@@ -5,6 +5,7 @@ import {
 } from '../overlay/subtitle-overlay';
 import { StudyControls } from '../study/study-controls';
 import type { StudyCommand } from '../study/study-keys';
+import type { StudyPreferenceStore } from '../study/study-preferences';
 import type { Cue } from '../subtitles/cue';
 import type { PortugueseTranslation } from '../translation/portuguese-translation';
 import { observeScreenCaptions } from './caption-observer';
@@ -45,10 +46,18 @@ export class SubtitleSession {
     private readonly player: Element,
     private readonly adapter: YouTubeAdapter,
     private readonly translation: PortugueseTranslation,
+    private readonly preferences: StudyPreferenceStore,
   ) {
-    this.overlay = new SubtitleOverlay(container, (command) => {
-      this.handleCommand(command);
-    });
+    this.overlay = new SubtitleOverlay(
+      container,
+      (command) => {
+        this.handleCommand(command);
+      },
+      preferences.current.placement,
+      (placement) => {
+        preferences.remember({ placement });
+      },
+    );
     this.controlsObserver = watchPlayerControls(player, (liftPx) => {
       this.overlay.setControlsLift(liftPx);
     });
@@ -144,7 +153,15 @@ export class SubtitleSession {
     this.controls?.stop();
     this.controlsVideo = video;
     this.controls = video
-      ? new StudyControls(video, this.overlay, this.personChangedSpeed)
+      ? new StudyControls(
+          video,
+          this.overlay,
+          this.personChangedSpeed,
+          this.preferences.current,
+          (change) => {
+            this.preferences.remember(change);
+          },
+        )
       : undefined;
     return this.controls;
   }

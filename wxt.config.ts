@@ -15,6 +15,7 @@ export default defineConfig({
   imports: false,
   manifest: {
     name: 'Projeto Bilíngue',
+    permissions: ['storage'],
     host_permissions: ['https://www.youtube.com/*'],
     web_accessible_resources: [
       {

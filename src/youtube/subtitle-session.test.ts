@@ -2,6 +2,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { JSDOM } from 'jsdom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
+import { StudyPreferenceStore } from '../study/study-preferences';
 import { PortugueseTranslation } from '../translation/portuguese-translation';
 import { serveTranslationCache } from '../translation/translation-service';
 import type { TranslatorApi, TranslatorAvailability } from '../translation/translator-api';
@@ -47,6 +48,7 @@ describe('SubtitleSession', () => {
   let video: HTMLVideoElement;
   let frames: FrameRequestCallback[];
   let session: SubtitleSession | undefined;
+  let preferences: StudyPreferenceStore;
   let translation: PortugueseTranslation;
   const playback = { currentTime: 0, paused: true };
 
@@ -85,6 +87,10 @@ describe('SubtitleSession', () => {
     serveTranslationCache();
   });
 
+  beforeEach(async () => {
+    preferences = await StudyPreferenceStore.load(fakeBrowser.storage.local);
+  });
+
   afterEach(() => {
     session?.stop();
     vi.unstubAllGlobals();
@@ -104,7 +110,13 @@ describe('SubtitleSession', () => {
   }
 
   function start(): SubtitleSession {
-    session = new SubtitleSession(find('#overlay'), find('#movie_player'), adapter, translation);
+    session = new SubtitleSession(
+      find('#overlay'),
+      find('#movie_player'),
+      adapter,
+      translation,
+      preferences,
+    );
     return session;
   }
 
@@ -261,6 +273,20 @@ describe('SubtitleSession', () => {
     expect(video.playbackRate).toBe(0.9);
     session?.handleCommand('faster');
     expect(video.playbackRate).toBe(0.95);
+  });
+
+  it('remembers the choices and keeps them when the player swaps its video element', async () => {
+    start();
+    session?.handleCommand('slower');
+    session?.handleCommand('blur');
+    const nextVideo = document.createElement('video');
+    video.replaceWith(nextVideo);
+    session?.render();
+    expect(nextVideo.playbackRate).toBe(0.95);
+    expect(find('#overlay .box').classList.contains('blurred')).toBe(true);
+    await vi.waitFor(async () => {
+      expect(await fakeBrowser.storage.local.get(null)).toEqual({ speed: 0.95, blurred: true });
+    });
   });
 
   it('plays the ad at normal speed, ignores the commands and restores the speed after it', () => {

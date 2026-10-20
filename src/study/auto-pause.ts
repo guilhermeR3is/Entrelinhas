@@ -4,11 +4,12 @@ import { groupSentences } from '../translation/sentence-groups';
 const MAX_FRAME_STEP_MS = 1000;
 
 export class AutoPause {
-  private on = false;
   private track: SubtitleTrack | null = null;
   private sentenceEnds: readonly number[] = [];
   private lastTimeMs: number | null = null;
   private lastLine = '';
+
+  constructor(private on = false) {}
 
   get enabled(): boolean {
     return this.on;

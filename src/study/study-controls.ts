@@ -6,6 +6,7 @@ import { groupSentences } from '../translation/sentence-groups';
 import { AutoPause } from './auto-pause';
 import { PlaybackSpeed } from './playback-speed';
 import type { StudyCommand } from './study-keys';
+import { DEFAULT_PREFERENCES, type StudyChoices } from './study-preferences';
 
 const SLOW_REPEAT_SPEED = 0.75;
 
@@ -14,7 +15,7 @@ type SlowRepeat = { restoreSpeed: number; endMs: number | null; line: string | n
 
 export class StudyControls {
   private readonly speed: PlaybackSpeed;
-  private readonly autoPause = new AutoPause();
+  private readonly autoPause: AutoPause;
   private readonly listeners = new AbortController();
   private frozenAtMs: number | null = null;
   private frozen = false;
@@ -27,19 +28,27 @@ export class StudyControls {
   private repeatTarget: RepeatTarget | null = null;
   private slowRepeat: SlowRepeat | null = null;
   private seekingToRepeat = false;
-  private blurred = false;
+  private blurred: boolean;
 
   constructor(
     private readonly video: HTMLVideoElement,
     private readonly overlay: SubtitleOverlay,
     personChangedSpeed: () => boolean,
+    choices: StudyChoices = DEFAULT_PREFERENCES,
+    private readonly onChoice: (change: Partial<StudyChoices>) => void = () => undefined,
   ) {
     this.speed = new PlaybackSpeed(video, {
       personChangedSpeed,
       onChange: (speed) => {
         overlay.setSpeed(speed);
       },
+      onPersonChoice: (speed) => {
+        onChoice({ speed });
+      },
     });
+    if (choices.speed !== this.speed.speed) this.speed.choose(choices.speed);
+    this.autoPause = new AutoPause(choices.autoPause);
+    this.blurred = choices.blurred;
     overlay.setSpeed(this.speed.speed);
     overlay.setAutoPause(this.autoPause.enabled);
     overlay.setRepeatAvailable(false);
@@ -60,10 +69,14 @@ export class StudyControls {
       case 'faster':
         this.slowRepeat = null;
         this.speed.step(command === 'faster' ? 1 : -1);
+        this.onChoice({ speed: this.speed.speed });
         break;
-      case 'auto-pause':
-        this.overlay.setAutoPause(this.autoPause.toggle());
+      case 'auto-pause': {
+        const autoPause = this.autoPause.toggle();
+        this.overlay.setAutoPause(autoPause);
+        this.onChoice({ autoPause });
         break;
+      }
       case 'repeat':
         this.repeat(false);
         break;
@@ -73,6 +86,7 @@ export class StudyControls {
       case 'blur':
         this.blurred = !this.blurred;
         this.overlay.setBlurred(this.blurred);
+        this.onChoice({ blurred: this.blurred });
         break;
       case 'reveal':
         this.overlay.revealPortuguese();

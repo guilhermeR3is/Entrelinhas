@@ -1,9 +1,11 @@
 import { createShadowRootUi } from 'wxt/utils/content-script-ui/shadow-root';
 import { fakeTranslatorApi } from '../../e2e/fake-translator';
+import { browser } from 'wxt/browser';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import '../overlay/subtitle-overlay.css';
 import { loadSubtitleFont } from '../overlay/subtitle-font';
 import { listenForStudyKeys } from '../study/study-keys';
+import { StudyPreferenceStore } from '../study/study-preferences';
 import { PortugueseTranslation } from '../translation/portuguese-translation';
 import { findTranslatorApi } from '../translation/translator-api';
 import { SubtitleSession } from '../youtube/subtitle-session';
@@ -29,6 +31,7 @@ export default defineContentScript({
       session?.render();
     });
 
+    const preferences = await StudyPreferenceStore.load(browser.storage.local);
     const ui = await createShadowRootUi(ctx, {
       name: 'projeto-bilingue-legenda',
       position: 'inline',
@@ -38,7 +41,7 @@ export default defineContentScript({
         if (!player) return;
         if (!fontLoaded) loadSubtitleFont(document.fonts);
         fontLoaded = true;
-        session = new SubtitleSession(container, player, adapter, translation);
+        session = new SubtitleSession(container, player, adapter, translation, preferences);
       },
       onRemove: () => {
         session?.stop();
