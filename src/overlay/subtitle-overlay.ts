@@ -116,6 +116,10 @@ export class SubtitleOverlay {
     this.strip.setAutoPause(enabled);
   }
 
+  setRepeatAvailable(available: boolean): void {
+    this.strip.setRepeatAvailable(available);
+  }
+
   setStudyState(available: boolean, paused: boolean): void {
     if (available === this.studyAvailable && paused === this.stripPinned) return;
     this.studyAvailable = available;

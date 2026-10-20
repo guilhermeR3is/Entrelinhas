@@ -59,8 +59,10 @@
 
 .strip {
   display: none;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
+  max-width: 90cqw;
   gap: 0.25em;
   padding: 0.25em 0.5em;
   font-size: max(0.875em, 2.4cqh);

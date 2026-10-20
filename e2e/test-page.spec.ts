@@ -165,3 +165,50 @@ test('pauses at the end of each sentence while "Pausar no fim" is on', async ({ 
   await page.waitForTimeout(1500);
   expect((await video()).paused).toBe(false);
 });
+
+async function seekTo(page: Page, seconds: number): Promise<void> {
+  await page.evaluate(async (time) => {
+    const video = document.querySelector('video');
+    if (!video) throw new Error('No video on the test page');
+    const seeked = new Promise((resolve) => {
+      video.addEventListener('seeked', resolve, { once: true });
+    });
+    video.currentTime = time;
+    await seeked;
+  }, seconds);
+}
+
+function playback(page: Page) {
+  return page.evaluate(() => {
+    const video = document.querySelector('video');
+    return {
+      timeMs: Math.round((video?.currentTime ?? 0) * 1000),
+      paused: video?.paused,
+      rate: video?.playbackRate,
+    };
+  });
+}
+
+test('R plays the sentence on screen again from its start', async ({ page }) => {
+  await seekTo(page, 3);
+  await expect(page.locator('.english')).toHaveText('Cues can touch end to end.');
+  await page.keyboard.press('r');
+  const after = await playback(page);
+  expect(after.timeMs).toBeGreaterThanOrEqual(2000);
+  expect(after.timeMs).toBeLessThan(2500);
+  expect(after.paused).toBe(false);
+});
+
+test('Shift+R repeats the sentence at 0.75x and gives the speed back at its end', async ({
+  page,
+}) => {
+  await seekTo(page, 3);
+  await page.keyboard.press('Shift+R');
+  expect((await playback(page)).rate).toBe(0.75);
+  await expect(page.locator('.speed')).toHaveText('0,75x');
+  await expect
+    .poll(async () => (await playback(page)).timeMs, { timeout: 5000 })
+    .toBeGreaterThan(4150);
+  expect((await playback(page)).rate).toBe(1);
+  await expect(page.locator('.speed')).toHaveText('1x');
+});

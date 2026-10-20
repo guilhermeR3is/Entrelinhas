@@ -88,7 +88,7 @@ export class SubtitleSession {
     const timeMs = controls?.displayTimeMs(playheadMs) ?? playheadMs;
     let english = this.adapter.activeCues(timeMs);
     if (status === 'screen') {
-      controls?.followLine(english.map((cue) => cue.text).join('\n'));
+      controls?.followLine(english.map((cue) => cue.text).join('\n'), playheadMs);
       if (controls?.isFrozen) english = this.shownEnglish;
     }
     this.shownEnglish = english;

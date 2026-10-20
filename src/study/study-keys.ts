@@ -1,4 +1,4 @@
-export type StudyCommand = 'slower' | 'faster' | 'auto-pause';
+export type StudyCommand = 'slower' | 'faster' | 'auto-pause' | 'repeat' | 'repeat-slow';
 
 type KeyBinding = { key: string; shift: boolean };
 
@@ -6,6 +6,8 @@ const STUDY_KEYS: Record<StudyCommand, KeyBinding> = {
   slower: { key: 'z', shift: false },
   faster: { key: 'x', shift: false },
   'auto-pause': { key: 'p', shift: false },
+  repeat: { key: 'r', shift: false },
+  'repeat-slow': { key: 'r', shift: true },
 };
 const COMMANDS = Object.keys(STUDY_KEYS) as StudyCommand[];
 const EDITABLE = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';

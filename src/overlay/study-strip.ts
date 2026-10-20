@@ -12,6 +12,7 @@ export class StudyStrip {
   private readonly slower: HTMLButtonElement;
   private readonly faster: HTMLButtonElement;
   private readonly autoPause: HTMLButtonElement;
+  private readonly repeat: HTMLButtonElement;
   private readonly speedValue: HTMLOutputElement;
 
   constructor(
@@ -28,6 +29,9 @@ export class StudyStrip {
       onCommand('auto-pause');
     });
     this.autoPause.classList.add('separated');
+    this.repeat = this.button('Repetir', 'R', null, () => {
+      onCommand('repeat');
+    });
     this.speedValue = document.createElement('output');
     this.speedValue.className = 'speed';
     this.speedValue.setAttribute('aria-label', 'Velocidade');
@@ -36,7 +40,7 @@ export class StudyStrip {
     this.element.className = 'strip';
     this.element.setAttribute('role', 'group');
     this.element.setAttribute('aria-label', 'Controles de estudo');
-    this.element.append(this.slower, this.speedValue, this.faster, this.autoPause);
+    this.element.append(this.slower, this.speedValue, this.faster, this.autoPause, this.repeat);
     this.element.addEventListener('mousedown', (event) => {
       event.preventDefault();
     });
@@ -51,6 +55,10 @@ export class StudyStrip {
 
   setAutoPause(enabled: boolean): void {
     this.autoPause.setAttribute('aria-pressed', String(enabled));
+  }
+
+  setRepeatAvailable(available: boolean): void {
+    this.repeat.setAttribute('aria-disabled', String(!available));
   }
 
   private button(

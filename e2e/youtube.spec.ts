@@ -275,3 +275,19 @@ test('P pauses the video where the caption ends and keeps it on screen', async (
   await expect(page.locator(ENGLISH)).toHaveText('First line of video A');
   expect(await keysSeenByPage(page)).toEqual([]);
 });
+
+test('R goes back to the start of the caption and keeps it from the page', async ({ page }) => {
+  await open(page, 'video-a');
+  await play(page);
+  await expect
+    .poll(() => page.evaluate(() => document.querySelector('video')?.currentTime ?? 0))
+    .toBeGreaterThan(1);
+  await page.keyboard.press('r');
+  const timeS = await page.evaluate(() => document.querySelector('video')?.currentTime ?? 0);
+  expect(timeS).toBeLessThan(0.5);
+  await expect(page.getByRole('button', { name: 'Repetir' })).toHaveAttribute(
+    'aria-disabled',
+    'false',
+  );
+  expect(await keysSeenByPage(page)).toEqual([]);
+});

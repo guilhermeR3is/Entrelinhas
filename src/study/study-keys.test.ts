@@ -64,6 +64,12 @@ describe('listenForStudyKeys', () => {
     expect(pageKeys).toEqual([]);
   });
 
+  it('turns R into repeat and Shift+R into the slow repeat', () => {
+    press('#player', 'r');
+    press('#player', 'R', { shiftKey: true });
+    expect(commands).toEqual(['repeat', 'repeat-slow']);
+  });
+
   it('lets every other key reach the page', () => {
     press('#player', 'k');
     press('#player', '>', { shiftKey: true });

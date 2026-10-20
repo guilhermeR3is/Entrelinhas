@@ -7,14 +7,20 @@ import { StudyControls } from './study-controls';
 class FakeVideo extends EventTarget {
   playbackRate = 1;
   paused = false;
+  currentTime = 0;
 
   pause(): void {
     this.paused = true;
   }
 
-  play(): void {
+  play(): Promise<void> {
     this.paused = false;
     this.dispatchEvent(new Event('playing'));
+    return Promise.resolve();
+  }
+
+  finishSeek(): void {
+    this.dispatchEvent(new Event('seeked'));
   }
 }
 
@@ -60,7 +66,7 @@ describe('StudyControls', () => {
     expect(controls.displayTimeMs(2012)).toBe(1999);
     expect(TRACK.activeAt(controls.displayTimeMs(2012))[0]?.text).toBe('Hello there.');
 
-    video.play();
+    void video.play();
     expect(controls.isFrozen).toBe(false);
     expect(controls.displayTimeMs(2030)).toBe(2030);
   });
@@ -101,10 +107,131 @@ describe('StudyControls', () => {
 
   it('pauses when the line read from the screen changes', () => {
     controls.handle('auto-pause');
-    controls.followLine('Hello');
-    controls.followLine('Hello there');
+    controls.followLine('Hello', 0);
+    controls.followLine('Hello there', 1000);
     expect(video.paused).toBe(true);
     expect(controls.isFrozen).toBe(true);
     expect(controls.displayTimeMs(5000)).toBe(5000);
+  });
+
+  describe('repeating', () => {
+    function repeatButton(): HTMLElement {
+      const button = container.querySelectorAll<HTMLElement>('.strip button')[3];
+      if (!button) throw new Error('Missing repeat button');
+      return button;
+    }
+
+    it('goes back to the start of the sentence on screen and plays it', () => {
+      video.paused = true;
+      controls.followSentences(TRACK, 2500);
+      controls.handle('repeat');
+      expect(video.currentTime).toBe(2);
+      expect(video.paused).toBe(false);
+    });
+
+    it('repeats the sentence that auto-pause kept on screen', () => {
+      controls.handle('auto-pause');
+      controls.followSentences(TRACK, 1990);
+      controls.followSentences(TRACK, 2012);
+      controls.handle('repeat');
+      expect(video.currentTime).toBe(0);
+    });
+
+    it('has nothing to repeat before the first sentence', () => {
+      const late = new SubtitleTrack([
+        { id: 0, startMs: 1000, endMs: 2000, text: 'Late.', lang: 'en' },
+      ]);
+      expect(repeatButton().getAttribute('aria-disabled')).toBe('true');
+      controls.followSentences(late, 500);
+      video.currentTime = 0.5;
+      controls.handle('repeat');
+      expect(video.currentTime).toBe(0.5);
+
+      controls.followSentences(late, 1500);
+      expect(repeatButton().getAttribute('aria-disabled')).toBe('false');
+    });
+
+    it('repeats slowly and gives the speed back when the sentence ends', () => {
+      controls.handle('faster');
+      controls.handle('faster');
+      controls.followSentences(TRACK, 2500);
+      controls.handle('repeat-slow');
+      expect(video.playbackRate).toBe(0.75);
+      expect(video.currentTime).toBe(2);
+      controls.followSentences(TRACK, 2500);
+      video.finishSeek();
+      controls.followSentences(TRACK, 3000);
+      expect(video.playbackRate).toBe(0.75);
+      controls.followSentences(TRACK, 4000);
+      expect(video.playbackRate).toBe(1.1);
+    });
+
+    it('gives the speed back when the person seeks away from the slow repeat', () => {
+      controls.followSentences(TRACK, 2500);
+      controls.handle('repeat-slow');
+      video.finishSeek();
+      video.finishSeek();
+      expect(video.playbackRate).toBe(1);
+    });
+
+    it('keeps a speed the person picks during the slow repeat', () => {
+      controls.followSentences(TRACK, 2500);
+      controls.handle('repeat-slow');
+      video.finishSeek();
+      controls.handle('slower');
+      controls.followSentences(TRACK, 4000);
+      expect(video.playbackRate).toBe(0.7);
+    });
+
+    it('counts a sentence as on screen from the exact instant it starts', () => {
+      controls.followSentences(TRACK, 2000);
+      controls.handle('repeat');
+      expect(video.currentTime).toBe(2);
+    });
+
+    it('gives back the speed from before the first slow repeat when pressed twice', () => {
+      controls.handle('faster');
+      controls.handle('faster');
+      controls.followSentences(TRACK, 2500);
+      controls.handle('repeat-slow');
+      video.finishSeek();
+      controls.handle('repeat-slow');
+      video.finishSeek();
+      controls.followSentences(TRACK, 4000);
+      expect(video.playbackRate).toBe(1.1);
+    });
+
+    it('waits for its own seek before checking the end of the slow repeat', () => {
+      controls.followSentences(TRACK, 3990);
+      controls.handle('repeat-slow');
+      controls.followSentences(TRACK, 4005);
+      expect(video.playbackRate).toBe(0.75);
+    });
+
+    it('ends the slow repeat of a screen line when the next line shows up', () => {
+      controls.followLine('First', 1000);
+      controls.handle('repeat-slow');
+      video.finishSeek();
+      controls.followLine('First', 1000);
+      expect(video.playbackRate).toBe(0.75);
+      controls.followLine('Second', 3000);
+      expect(video.playbackRate).toBe(1);
+    });
+
+    it('goes back to when the line read from the screen appeared', () => {
+      video.paused = true;
+      controls.followLine('First', 1000);
+      controls.followLine('Second', 3000);
+      controls.handle('repeat');
+      expect(video.currentTime).toBe(3);
+    });
+
+    it('goes back to the line auto-pause kept when the screen moved on', () => {
+      controls.handle('auto-pause');
+      controls.followLine('First', 1000);
+      controls.followLine('Second', 3000);
+      controls.handle('repeat');
+      expect(video.currentTime).toBe(1);
+    });
   });
 });
