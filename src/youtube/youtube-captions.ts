@@ -32,7 +32,7 @@ export class YouTubeCaptions {
     const lang = message.translatedTo ?? message.lang ?? UNKNOWN_LANGUAGE;
     if (isEnglish(lang)) {
       this.english = { videoId, lang, track: readTrack(message.body, lang) };
-    } else if (isPortuguese(lang) && message.translatedTo === null) {
+    } else if (isPortuguese(lang) && message.translatedTo === null && message.kind !== 'asr') {
       this.portuguese = { videoId, lang, track: readTrack(message.body, lang) };
     }
     this.latest = { videoId, lang };

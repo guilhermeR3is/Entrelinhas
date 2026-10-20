@@ -75,6 +75,21 @@ test('prefers the official Portuguese track once the player downloads it', async
   await expect(page.locator(ENGLISH)).toHaveText('First line of video A');
 });
 
+test('keeps the translation when the player downloads the automatic Portuguese track', async ({
+  page,
+}) => {
+  await open(page, 'video-a', 'available');
+  await expect(page.locator(PORTUGUESE)).toHaveText('[pt] First line of video A');
+
+  const automatic = page.waitForResponse((response) => response.url().includes('kind=asr'));
+  await fakePlayer(page, 'loadAutomaticPortuguese');
+  await automatic;
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  await expect(page.locator(PORTUGUESE)).toHaveText('[pt] First line of video A');
+});
+
 test('reuses saved translations on the next visit without translating again', async ({ page }) => {
   await open(page, 'video-a', 'available');
   await expect(page.locator(PORTUGUESE)).toHaveText('[pt] First line of video A');

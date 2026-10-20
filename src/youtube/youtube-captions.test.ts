@@ -120,6 +120,14 @@ describe('YouTubeCaptions with an official Portuguese track', () => {
     expect(captions.officialPortugueseTrack()).toBeNull();
   });
 
+  it('does not take the automatic Portuguese track as official', () => {
+    const { captions, send } = createPage();
+    send({});
+    send({ lang: 'pt', kind: 'asr', body: PORTUGUESE_BODY });
+    expect(captions.status()).toBe('full-track');
+    expect(captions.officialPortugueseTrack()).toBeNull();
+  });
+
   it('hands over the English track only for the current video', () => {
     const { captions, send, goTo } = createPage();
     send({});

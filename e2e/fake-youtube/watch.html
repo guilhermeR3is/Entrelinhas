@@ -103,13 +103,14 @@
         document.documentElement.requestFullscreen();
       });
 
-      function loadCaptions(lang = 'en') {
+      function loadCaptions(lang = 'en', kind = '') {
         const videoId = new URL(location.href).searchParams.get('v');
         if (videoId === 'no-captions') return;
         const request = new XMLHttpRequest();
+        const kindParam = kind ? `&kind=${kind}` : '';
         request.open(
           'GET',
-          `/api/timedtext?v=${videoId}&lang=${lang}&fmt=json3&pot=local-test-token`,
+          `/api/timedtext?v=${videoId}&lang=${lang}${kindParam}&fmt=json3&pot=local-test-token`,
         );
         request.send();
       }
@@ -128,6 +129,7 @@
           document.getElementById('ytp-caption-window-container').replaceWith(fresh);
         },
         loadPortuguese: () => loadCaptions('pt-BR'),
+        loadAutomaticPortuguese: () => loadCaptions('pt', 'asr'),
         showScreenCaption: (text) => {
           const line = document.createElement('span');
           line.className = 'caption-visual-line';
