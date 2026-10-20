@@ -10,7 +10,15 @@ const DEDICATED_HOSTS = new Set(['www.youtube.com', 'youtube.com', 'm.youtube.co
 const FrameBoxes = z.array(z.object({ src: z.string(), width: z.number(), height: z.number() }));
 
 export function measureFrames(): { src: string; width: number; height: number }[] {
-  return Array.from(document.querySelectorAll('iframe'), (frame) => {
+  const frames: HTMLIFrameElement[] = [];
+  const collect = (root: Document | ShadowRoot) => {
+    for (const element of root.querySelectorAll('*')) {
+      if (element instanceof HTMLIFrameElement) frames.push(element);
+      if (element.shadowRoot) collect(element.shadowRoot);
+    }
+  };
+  collect(document);
+  return frames.map((frame) => {
     const box = frame.getBoundingClientRect();
     const shown = getComputedStyle(frame).visibility !== 'hidden';
     return { src: frame.src, width: shown ? box.width : 0, height: shown ? box.height : 0 };

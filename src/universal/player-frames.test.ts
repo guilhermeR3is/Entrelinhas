@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { choosePlayerFrame } from './player-frames';
+import { JSDOM } from 'jsdom';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { choosePlayerFrame, measureFrames } from './player-frames';
 
 const PAGE = 'https://www.cursos.com.br/aula/3';
 
@@ -43,5 +44,33 @@ describe('choosePlayerFrame', () => {
     expect(choosePlayerFrame({ src: 'https://player.vimeo.com/' }, PAGE)).toBeNull();
     expect(choosePlayerFrame(undefined, PAGE)).toBeNull();
     expect(choosePlayerFrame([frame('https://player.vimeo.com/9')], 'not a url')).toBeNull();
+  });
+});
+
+describe('measureFrames', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('finds the frames hidden inside the shadow roots of components', () => {
+    const { window } = new JSDOM(
+      '<iframe src="https://ads.example.net/slot"></iframe><interactive-example></interactive-example>',
+    );
+    const outer = window.document
+      .querySelector('interactive-example')
+      ?.attachShadow({ mode: 'open' });
+    const inner = window.document.createElement('play-runner');
+    outer?.append(inner);
+    const frame = window.document.createElement('iframe');
+    frame.src = 'https://player.example.org/embed/1';
+    inner.attachShadow({ mode: 'open' }).append(frame);
+    vi.stubGlobal('document', window.document);
+    vi.stubGlobal('HTMLIFrameElement', window.HTMLIFrameElement);
+    vi.stubGlobal('getComputedStyle', window.getComputedStyle.bind(window));
+
+    expect(measureFrames().map((measured) => measured.src)).toEqual([
+      'https://ads.example.net/slot',
+      'https://player.example.org/embed/1',
+    ]);
   });
 });

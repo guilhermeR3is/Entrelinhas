@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
 import { openFakeYouTube } from './fake-youtube';
 import { expect, test } from './fixtures';
 
@@ -182,6 +182,21 @@ test('asks to turn captions on when the video has none playing', async ({ page }
 
 function speed(page: Page): Promise<number | undefined> {
   return page.evaluate(() => document.querySelector('video')?.playbackRate);
+}
+
+async function reloadExtension(context: BrowserContext, popupUrl: string): Promise<void> {
+  const oldWorker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  const oldWorkerClosed = oldWorker.waitForEvent('close', { timeout: 10_000 });
+  const extensionPage = await context.newPage();
+  await extensionPage.goto(popupUrl);
+  await extensionPage
+    .evaluate(() => {
+      (
+        globalThis as unknown as { chrome: { runtime: { reload(): void } } }
+      ).chrome.runtime.reload();
+    })
+    .catch(() => undefined);
+  await oldWorkerClosed;
 }
 
 function keysSeenByPage(page: Page): Promise<string[]> {
@@ -484,16 +499,7 @@ test('steps aside when the extension is reloaded while the video page stays open
   await open(page, 'video-a');
   await expect(page.locator(ENGLISH)).toHaveText('First line of video A');
 
-  const extensionPage = await context.newPage();
-  await extensionPage.goto(popupUrl);
-  await extensionPage
-    .evaluate(() => {
-      (
-        globalThis as unknown as { chrome: { runtime: { reload(): void } } }
-      ).chrome.runtime.reload();
-    })
-    .catch(() => undefined);
-  await expect.poll(() => context.serviceWorkers().length, { timeout: 10_000 }).toBeGreaterThan(0);
+  await reloadExtension(context, popupUrl);
 
   await page.keyboard.press('z');
   await expect(page.locator(OVERLAY)).toHaveCount(0);
@@ -509,16 +515,7 @@ test('steps aside on the next caption after the extension is reloaded, without a
   await open(page, 'video-a');
   await expect(page.locator(ENGLISH)).toHaveText('First line of video A');
 
-  const extensionPage = await context.newPage();
-  await extensionPage.goto(popupUrl);
-  await extensionPage
-    .evaluate(() => {
-      (
-        globalThis as unknown as { chrome: { runtime: { reload(): void } } }
-      ).chrome.runtime.reload();
-    })
-    .catch(() => undefined);
-  await expect.poll(() => context.serviceWorkers().length, { timeout: 10_000 }).toBeGreaterThan(0);
+  await reloadExtension(context, popupUrl);
 
   await fakePlayer(page, 'openVideo', 'video-b');
   await expect(page.locator(OVERLAY)).toHaveCount(0);
