@@ -9,16 +9,28 @@ export function formatSpeed(speed: number): string {
 
 export class StudyStrip {
   readonly element: HTMLElement;
+  readonly handle: HTMLButtonElement;
   private readonly slower: HTMLButtonElement;
   private readonly faster: HTMLButtonElement;
   private readonly autoPause: HTMLButtonElement;
   private readonly repeat: HTMLButtonElement;
+  private readonly blur: HTMLButtonElement;
   private readonly speedValue: HTMLOutputElement;
 
   constructor(
     private readonly document: Document,
     onCommand: (command: StudyCommand) => void,
   ) {
+    this.handle = document.createElement('button');
+    this.handle.type = 'button';
+    this.handle.className = 'handle';
+    this.handle.textContent = 'Mover';
+    this.handle.setAttribute('aria-label', 'Mover a legenda');
+    this.handle.setAttribute('aria-describedby', 'move-hint');
+    const moveHint = document.createElement('span');
+    moveHint.id = 'move-hint';
+    moveHint.className = 'visually-hidden';
+    moveHint.textContent = 'Arraste ou use as setas. Enter leva a legenda para cima ou para baixo.';
     this.slower = this.button('−', 'Z', 'Mais devagar', () => {
       onCommand('slower');
     });
@@ -32,6 +44,9 @@ export class StudyStrip {
     this.repeat = this.button('Repetir', 'R', null, () => {
       onCommand('repeat');
     });
+    this.blur = this.button('Borrar português', 'B', null, () => {
+      onCommand('blur');
+    });
     this.speedValue = document.createElement('output');
     this.speedValue.className = 'speed';
     this.speedValue.setAttribute('aria-label', 'Velocidade');
@@ -40,7 +55,16 @@ export class StudyStrip {
     this.element.className = 'strip';
     this.element.setAttribute('role', 'group');
     this.element.setAttribute('aria-label', 'Controles de estudo');
-    this.element.append(this.slower, this.speedValue, this.faster, this.autoPause, this.repeat);
+    this.element.append(
+      this.handle,
+      moveHint,
+      this.slower,
+      this.speedValue,
+      this.faster,
+      this.autoPause,
+      this.repeat,
+      this.blur,
+    );
     this.element.addEventListener('mousedown', (event) => {
       event.preventDefault();
     });
@@ -55,6 +79,10 @@ export class StudyStrip {
 
   setAutoPause(enabled: boolean): void {
     this.autoPause.setAttribute('aria-pressed', String(enabled));
+  }
+
+  setBlurred(blurred: boolean): void {
+    this.blur.setAttribute('aria-pressed', String(blurred));
   }
 
   setRepeatAvailable(available: boolean): void {

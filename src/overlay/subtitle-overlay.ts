@@ -1,5 +1,15 @@
 import type { StudyCommand } from '../study/study-keys';
 import type { Cue } from '../subtitles/cue';
+import {
+  DEFAULT_PLACEMENT,
+  offsetFor,
+  placementAt,
+  toggledEdge,
+  topOf,
+  type BoxOffset,
+  type BoxPlacement,
+  type Size,
+} from './box-placement';
 import { StudyStrip } from './study-strip';
 
 export type OverlayNotice = 'captions-off' | 'other-language' | 'unreadable';
@@ -23,6 +33,24 @@ const ISOLATED_EVENTS = [
   'keypress',
 ];
 const NO_CUES: readonly Cue[] = Object.freeze([]);
+const CONTROLS_GAP_PX = 8;
+const DRAG_THRESHOLD_PX = 4;
+const KEY_STEP = 0.05;
+const ARROW_STEPS: Partial<Record<string, { x: number; y: number }>> = {
+  ArrowLeft: { x: -1, y: 0 },
+  ArrowRight: { x: 1, y: 0 },
+  ArrowUp: { x: 0, y: -1 },
+  ArrowDown: { x: 0, y: 1 },
+};
+
+interface BoxDrag {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  left: number;
+  top: number;
+  moved: boolean;
+}
 
 const NOTICES: Record<OverlayNotice, { wordClass: string; definition: string }> = {
   'captions-off': { wordClass: 'desligada', definition: 'Ligue a legenda (CC) em inglês.' },
@@ -58,6 +86,13 @@ export class SubtitleOverlay {
   private stripPinned = false;
   private stripFocused = false;
   private stripFlashTimer: ReturnType<typeof setTimeout> | undefined;
+  private revealedText: string | null = null;
+  private placement = DEFAULT_PLACEMENT;
+  private offset: BoxOffset | null = null;
+  private shownTop = 0;
+  private controlsLift = 0;
+  private drag: BoxDrag | null = null;
+  private clickEndsDrag = false;
 
   constructor(container: Element, onCommand: (command: StudyCommand) => void = () => undefined) {
     this.document = container.ownerDocument;
@@ -90,10 +125,18 @@ export class SubtitleOverlay {
     this.announcer.lang = 'pt-BR';
     this.frame = this.element('div', 'frame', this.box, this.status, this.announcer);
     container.append(this.frame);
+    this.listenForMoves(this.strip.handle);
+    const resizeObserver = new ResizeObserver(() => {
+      this.place();
+    });
+    resizeObserver.observe(this.frame);
+    resizeObserver.observe(this.box);
   }
 
   setControlsLift(liftPx: number): void {
+    this.controlsLift = liftPx;
     this.frame.style.setProperty('--controls-lift', `${String(liftPx)}px`);
+    this.place();
   }
 
   showCues(english: readonly Cue[], portuguese: readonly Cue[] = NO_CUES): void {
@@ -118,6 +161,16 @@ export class SubtitleOverlay {
 
   setRepeatAvailable(available: boolean): void {
     this.strip.setRepeatAvailable(available);
+  }
+
+  setBlurred(blurred: boolean): void {
+    this.strip.setBlurred(blurred);
+    this.box.classList.toggle('blurred', blurred);
+  }
+
+  revealPortuguese(): void {
+    this.revealedText = textOf(this.shownPortuguese);
+    this.portuguese.classList.add('revealed');
   }
 
   setStudyState(available: boolean, paused: boolean): void {
@@ -185,12 +238,112 @@ export class SubtitleOverlay {
     this.box.hidden = this.subtitle.hidden && !stripShown;
   }
 
+  private listenForMoves(handle: HTMLButtonElement): void {
+    handle.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0 || !this.offset) return;
+      handle.setPointerCapture(event.pointerId);
+      this.clickEndsDrag = false;
+      this.drag = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        left: this.offset.left,
+        top: this.shownTop,
+        moved: false,
+      };
+    });
+    handle.addEventListener('pointermove', (event) => {
+      const drag = this.drag;
+      if (drag?.pointerId !== event.pointerId) return;
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+      if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+      drag.moved = true;
+      this.box.classList.add('dragging');
+      this.moveTo(drag.left + dx, drag.top + dy);
+    });
+    const endDrag = (event: PointerEvent): void => {
+      if (this.drag?.pointerId !== event.pointerId) return;
+      this.clickEndsDrag = this.drag.moved;
+      this.drag = null;
+      this.box.classList.remove('dragging');
+      this.place();
+    };
+    handle.addEventListener('pointerup', endDrag);
+    handle.addEventListener('pointercancel', endDrag);
+    handle.addEventListener('click', () => {
+      if (this.clickEndsDrag) {
+        this.clickEndsDrag = false;
+        return;
+      }
+      this.placeWithoutTransition(toggledEdge(this.placement));
+    });
+    handle.addEventListener('keydown', (event) => {
+      const step = ARROW_STEPS[event.key];
+      if (!step || !this.offset || event.altKey || event.ctrlKey || event.metaKey) return;
+      event.preventDefault();
+      const frame = this.frameSize();
+      this.moveTo(
+        this.offset.left + step.x * KEY_STEP * frame.width,
+        this.shownTop + step.y * KEY_STEP * frame.height,
+      );
+    });
+  }
+
+  private moveTo(left: number, top: number): void {
+    const frame = this.frameSize();
+    if (frame.width === 0 || frame.height === 0) return;
+    this.placeWithoutTransition(placementAt(left, top, frame, this.boxSize()));
+  }
+
+  private placeWithoutTransition(placement: BoxPlacement): void {
+    this.placement = placement;
+    this.box.classList.add('moving');
+    this.place();
+    this.box.getBoundingClientRect();
+    this.box.classList.remove('moving');
+  }
+
+  private place(): void {
+    if (this.box.hidden) return;
+    const frame = this.frameSize();
+    const box = this.boxSize();
+    const offset = offsetFor(this.placement, frame, box);
+    this.offset = offset;
+    const top = topOf(offset, frame, box);
+    const bottomGap = frame.height - top - box.height;
+    const liftShift =
+      this.controlsLift > 0
+        ? Math.min(top, Math.max(0, this.controlsLift + CONTROLS_GAP_PX - bottomGap))
+        : 0;
+    this.shownTop = top - liftShift;
+    this.box.style.left = `${String(offset.left)}px`;
+    this.box.style.top = offset.edge === 'top' ? `${String(offset.distance)}px` : '';
+    this.box.style.bottom = offset.edge === 'bottom' ? `${String(offset.distance)}px` : '';
+    this.box.style.setProperty('--lift-shift', `${String(liftShift)}px`);
+    if (!this.drag?.moved) this.box.classList.toggle('top-edge', offset.edge === 'top');
+  }
+
+  private frameSize(): Size {
+    return { width: this.frame.clientWidth, height: this.frame.clientHeight };
+  }
+
+  private boxSize(): Size {
+    const { width, height } = this.box.getBoundingClientRect();
+    return { width, height };
+  }
+
   private renderPortuguese(): void {
     const portuguese = this.shownPortuguese;
     const state = this.translationState;
     this.portuguese.classList.toggle('translation-state', portuguese.length === 0 && !!state);
     if (portuguese.length > 0) {
-      this.portuguese.textContent = textOf(portuguese);
+      const text = textOf(portuguese);
+      if (this.revealedText !== null && text !== this.revealedText) {
+        this.revealedText = null;
+        this.portuguese.classList.remove('revealed');
+      }
+      this.portuguese.textContent = text;
     } else if (state) {
       this.portuguese.replaceChildren(TRANSLATION_STATES[state.kind]);
       if (state.kind === 'downloading') {

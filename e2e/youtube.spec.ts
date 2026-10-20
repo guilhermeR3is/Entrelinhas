@@ -291,3 +291,100 @@ test('R goes back to the start of the caption and keeps it from the page', async
   );
   expect(await keysSeenByPage(page)).toEqual([]);
 });
+
+interface BoxInPlayer {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  centerX: number;
+  bottomLine: number;
+}
+
+async function boxInPlayer(page: Page): Promise<BoxInPlayer> {
+  const [box, player] = await Promise.all([
+    page.locator(`${OVERLAY} .box`).boundingBox(),
+    page.locator('#movie_player').boundingBox(),
+  ]);
+  if (!box || !player) throw new Error('Missing caption box or player');
+  return {
+    left: box.x - player.x,
+    top: box.y - player.y,
+    right: player.x + player.width - (box.x + box.width),
+    bottom: player.y + player.height - (box.y + box.height),
+    centerX: (box.x + box.width / 2 - player.x) / player.width,
+    bottomLine: (box.y + box.height - player.y) / player.height,
+  };
+}
+
+async function dragHandle(page: Page, to: { x: number; y: number }): Promise<void> {
+  const handle = await page.getByRole('button', { name: 'Mover a legenda' }).boundingBox();
+  if (!handle) throw new Error('Missing handle');
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 8 });
+  await page.mouse.up();
+}
+
+test('drags the caption box by its handle and keeps it inside the video', async ({ page }) => {
+  await open(page, 'video-a');
+  await expect.poll(() => gapAboveControls(page)).toBe(8);
+  const handle = await page.getByRole('button', { name: 'Mover a legenda' }).boundingBox();
+  if (!handle) throw new Error('Missing handle');
+  const before = await boxInPlayer(page);
+
+  await dragHandle(page, {
+    x: handle.x + handle.width / 2 - 150,
+    y: handle.y + handle.height / 2 - 200,
+  });
+  const moved = await boxInPlayer(page);
+  expect(moved.left).toBeCloseTo(before.left - 150, 0);
+  expect(moved.top).toBeCloseTo(before.top - 200, 0);
+  await expect(page.locator(ENGLISH)).toHaveText('First line of video A');
+
+  await dragHandle(page, { x: 1200, y: 700 });
+  const corner = await boxInPlayer(page);
+  expect(corner.right).toBeCloseTo(0, 0);
+  expect(corner.bottom).toBeCloseTo(67, 0);
+  await fakePlayer(page, 'hideControls');
+  await expect.poll(async () => Math.round((await boxInPlayer(page)).bottom)).toBe(0);
+  expect(await page.evaluate(() => document.querySelector('video')?.paused)).toBe(true);
+});
+
+test('the arrow keys move the box at once and Enter takes it to the top', async ({ page }) => {
+  await open(page, 'video-a');
+  await expect.poll(() => gapAboveControls(page)).toBe(8);
+  await page.getByRole('button', { name: 'Mover a legenda' }).focus();
+  const before = await boxInPlayer(page);
+
+  await page.keyboard.press('ArrowUp');
+  expect((await boxInPlayer(page)).top).toBeCloseTo(before.top - 24, 0);
+  await page.keyboard.press('ArrowLeft');
+  expect((await boxInPlayer(page)).left).toBeCloseTo(before.left - 42.7, 0);
+
+  await page.keyboard.press('Enter');
+  expect((await boxInPlayer(page)).top).toBeCloseTo(19.2, 0);
+  await page.keyboard.press('Space');
+  expect((await boxInPlayer(page)).bottom).toBeCloseTo(67, 0);
+  expect(await keysSeenByPage(page)).toEqual([]);
+});
+
+test('keeps the place of the box in proportion in fullscreen', async ({ page }) => {
+  await open(page, 'video-a');
+  await page.getByRole('button', { name: 'Mover a legenda' }).focus();
+  for (const key of ['ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowLeft', 'ArrowLeft']) {
+    await page.keyboard.press(key);
+  }
+  const before = await boxInPlayer(page);
+
+  await page.locator('.ytp-fullscreen-button').click();
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement?.tagName)).toBe('HTML');
+  await expect.poll(async () => (await boxInPlayer(page)).centerX).toBeCloseTo(before.centerX, 2);
+  expect((await boxInPlayer(page)).bottomLine).toBeCloseTo(before.bottomLine, 2);
+
+  await page.getByRole('button', { name: 'Mover a legenda' }).focus();
+  await page.keyboard.press('Enter');
+  const fullscreenTop = await boxInPlayer(page);
+  const playerHeight = await page.evaluate(() => window.innerHeight);
+  expect(fullscreenTop.top).toBeCloseTo(playerHeight * 0.04, 0);
+});

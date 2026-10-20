@@ -10,14 +10,25 @@ function cue(text: string, lang = 'en'): Cue {
 describe('SubtitleOverlay', () => {
   let container: HTMLElement;
   let overlay: SubtitleOverlay;
+  let resize: () => void;
 
   beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          resize = callback;
+        }
+        observe = vi.fn();
+      },
+    );
     container = new JSDOM().window.document.body;
     overlay = new SubtitleOverlay(container);
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   function find(selector: string): HTMLElement {
@@ -278,7 +289,7 @@ describe('SubtitleOverlay', () => {
     });
 
     it('shows the speed the Brazilian way and marks the ends of the range', () => {
-      const [slower, faster] = Array.from(container.querySelectorAll('.strip button'));
+      const [slower, faster] = Array.from(container.querySelectorAll('.strip button:not(.handle)'));
       expect(find('.speed').textContent).toBe('1x');
       overlay.setSpeed(0.85);
       expect(find('.speed').textContent).toBe('0,85x');
@@ -291,7 +302,7 @@ describe('SubtitleOverlay', () => {
 
     it('names each button with its key and runs its command', () => {
       const [slower, faster] = Array.from(
-        container.querySelectorAll<HTMLButtonElement>('.strip button'),
+        container.querySelectorAll<HTMLButtonElement>('.strip button:not(.handle)'),
       );
       expect(slower?.getAttribute('aria-label')).toBe('Mais devagar');
       expect(slower?.getAttribute('aria-keyshortcuts')).toBe('Z');
@@ -303,8 +314,31 @@ describe('SubtitleOverlay', () => {
 
     it('ignores a press on a button at the end of the range', () => {
       overlay.setSpeed(2);
-      container.querySelectorAll<HTMLButtonElement>('.strip button')[1]?.click();
+      container.querySelectorAll<HTMLButtonElement>('.strip button:not(.handle)')[1]?.click();
       expect(onCommand).not.toHaveBeenCalled();
+    });
+
+    it('blurs the Portuguese and marks the switch as on', () => {
+      overlay.setBlurred(true);
+      expect(find('.box').classList.contains('blurred')).toBe(true);
+      expect(
+        container.querySelectorAll('.strip button:not(.handle)')[4]?.getAttribute('aria-pressed'),
+      ).toBe('true');
+      overlay.setBlurred(false);
+      expect(find('.box').classList.contains('blurred')).toBe(false);
+    });
+
+    it('shows the blurred Portuguese until the next sentence arrives', () => {
+      overlay.setBlurred(true);
+      overlay.showCues([cue('Where are you')], [cue('Aonde você vai?', 'pt')]);
+      overlay.revealPortuguese();
+      expect(find('.portuguese').classList.contains('revealed')).toBe(true);
+
+      overlay.showCues([cue('going?')], [cue('Aonde você vai?', 'pt')]);
+      expect(find('.portuguese').classList.contains('revealed')).toBe(true);
+
+      overlay.showCues([cue('Home.')], [cue('Para casa.', 'pt')]);
+      expect(find('.portuguese').classList.contains('revealed')).toBe(false);
     });
 
     it('keeps clicks inside the box away from the player', () => {
@@ -327,6 +361,100 @@ describe('SubtitleOverlay', () => {
         new view.KeyboardEvent('keydown', { key: ' ', bubbles: true }),
       );
       expect(reachedPlayer).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('moving the box', () => {
+    function layOut(frame: { width: number; height: number }): void {
+      Object.defineProperty(find('.frame'), 'clientWidth', {
+        value: frame.width,
+        configurable: true,
+      });
+      Object.defineProperty(find('.frame'), 'clientHeight', {
+        value: frame.height,
+        configurable: true,
+      });
+      Object.defineProperty(find('.box'), 'getBoundingClientRect', {
+        value: () => ({ width: 200, height: 60 }),
+        configurable: true,
+      });
+      overlay.showCues([cue('Hello')]);
+      resize();
+    }
+
+    function press(key: string): KeyboardEvent {
+      const view = container.ownerDocument.defaultView;
+      if (!view) throw new Error('Missing window');
+      const event = new view.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      find('.handle').dispatchEvent(event);
+      return event;
+    }
+
+    it('starts centred near the bottom of the video', () => {
+      layOut({ width: 1000, height: 500 });
+      expect(find('.box').style.left).toBe('400px');
+      expect(find('.box').style.bottom).toBe('20px');
+      expect(find('.box').style.getPropertyValue('--lift-shift')).toBe('0px');
+    });
+
+    it('rises 8 px above the player controls and moves from where it is shown', () => {
+      layOut({ width: 1000, height: 500 });
+      overlay.setControlsLift(60);
+      expect(find('.box').style.getPropertyValue('--lift-shift')).toBe('48px');
+
+      press('ArrowUp');
+      expect(find('.box').style.bottom).toBe('93px');
+      expect(find('.box').style.getPropertyValue('--lift-shift')).toBe('0px');
+    });
+
+    it('never rises past the top of the video to get away from the controls', () => {
+      layOut({ width: 1000, height: 500 });
+      find('.handle').click();
+      overlay.setControlsLift(460);
+      expect(find('.box').style.getPropertyValue('--lift-shift')).toBe('20px');
+    });
+
+    it('goes down to the very bottom once the player controls hide', () => {
+      layOut({ width: 1000, height: 500 });
+      for (let step = 0; step < 3; step += 1) press('ArrowDown');
+      expect(find('.box').style.bottom).toBe('0px');
+      expect(find('.box').style.getPropertyValue('--lift-shift')).toBe('0px');
+    });
+
+    it('goes to the top on a click of the handle and back on the next one', () => {
+      layOut({ width: 1000, height: 500 });
+      find('.handle').click();
+      expect(find('.box').style.top).toBe('20px');
+      expect(find('.box').style.bottom).toBe('');
+      expect(find('.box').classList.contains('top-edge')).toBe(true);
+
+      find('.handle').click();
+      expect(find('.box').style.bottom).toBe('20px');
+      expect(find('.box').classList.contains('top-edge')).toBe(false);
+    });
+
+    it('moves by 5% of the video with the arrow keys and keeps the page from scrolling', () => {
+      layOut({ width: 1000, height: 500 });
+      expect(press('ArrowRight').defaultPrevented).toBe(true);
+      expect(find('.box').style.left).toBe('450px');
+      press('ArrowUp');
+      expect(find('.box').style.bottom).toBe('45px');
+      expect(press('Enter').defaultPrevented).toBe(false);
+    });
+
+    it('stays put when a key arrives while the video has no size', () => {
+      layOut({ width: 0, height: 0 });
+      press('ArrowLeft');
+      layOut({ width: 1000, height: 500 });
+      expect(find('.box').style.left).toBe('400px');
+      expect(find('.box').style.bottom).toBe('20px');
+    });
+
+    it('labels the handle and tells how to move it from the keyboard', () => {
+      const handle = find('.handle');
+      expect(handle.getAttribute('aria-label')).toBe('Mover a legenda');
+      const hint = container.querySelector(`#${handle.getAttribute('aria-describedby') ?? ''}`);
+      expect(hint?.textContent).toContain('setas');
     });
   });
 });

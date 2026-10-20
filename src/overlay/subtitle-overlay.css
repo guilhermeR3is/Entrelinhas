@@ -34,14 +34,25 @@
 .notice {
   border-radius: 4px;
   background: var(--backing);
-  translate: 0 calc(-1 * max(0px, var(--controls-lift, 0px) + 8px - 4cqh));
-  transition: translate 160ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .box {
+  position: absolute;
   display: flex;
   flex-direction: column;
+  width: max-content;
   pointer-events: auto;
+  translate: 0 calc(-1 * var(--lift-shift, 0px));
+  transition: translate 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.box.top-edge {
+  flex-direction: column-reverse;
+}
+
+.box.dragging,
+.box.moving {
+  transition: none;
 }
 
 .subtitle,
@@ -70,12 +81,28 @@
 }
 
 .strip.shown,
-.box.study:hover .strip {
+.box.study:hover .strip,
+.box.dragging .strip {
   display: flex;
 }
 
 .box:has(.subtitle:not([hidden])) .strip {
   border-block-end: 1px solid var(--rule);
+}
+
+.box.top-edge:has(.subtitle:not([hidden])) .strip {
+  border-block-start: 1px solid var(--rule);
+  border-block-end: 0;
+}
+
+.strip .handle {
+  margin-inline-end: 0.5em;
+  cursor: grab;
+  touch-action: none;
+}
+
+.box.dragging .handle {
+  cursor: grabbing;
 }
 
 .strip button {
@@ -156,11 +183,22 @@
   font-style: italic;
 }
 
+.box.blurred .portuguese:not(.translation-state) {
+  filter: blur(0.3em);
+  transition: filter 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.box.blurred:hover .portuguese,
+.box.blurred .portuguese.revealed {
+  filter: none;
+}
+
 .percent {
   font-variant-numeric: tabular-nums;
 }
 
-.announcer {
+.announcer,
+.visually-hidden {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -172,6 +210,7 @@
 
 .notice {
   font-size: max(1em, 3.2cqh);
+  translate: 0 calc(-1 * max(0px, var(--controls-lift, 0px) + 8px - 4cqh));
   transition:
     opacity 160ms cubic-bezier(0.23, 1, 0.32, 1),
     transform 160ms cubic-bezier(0.23, 1, 0.32, 1),
@@ -195,6 +234,10 @@
 
   .strip button {
     transition: background-color 120ms ease-out;
+  }
+
+  .box.blurred .portuguese:not(.translation-state) {
+    transition: none;
   }
 
   .strip button:not([aria-disabled='true']):active {

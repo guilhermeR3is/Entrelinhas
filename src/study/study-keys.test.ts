@@ -70,6 +70,12 @@ describe('listenForStudyKeys', () => {
     expect(commands).toEqual(['repeat', 'repeat-slow']);
   });
 
+  it('turns B into the blur switch and V into reveal', () => {
+    press('#player', 'b');
+    press('#player', 'v');
+    expect(commands).toEqual(['blur', 'reveal']);
+  });
+
   it('lets every other key reach the page', () => {
     press('#player', 'k');
     press('#player', '>', { shiftKey: true });

@@ -27,6 +27,7 @@ export class StudyControls {
   private repeatTarget: RepeatTarget | null = null;
   private slowRepeat: SlowRepeat | null = null;
   private seekingToRepeat = false;
+  private blurred = false;
 
   constructor(
     private readonly video: HTMLVideoElement,
@@ -42,6 +43,7 @@ export class StudyControls {
     overlay.setSpeed(this.speed.speed);
     overlay.setAutoPause(this.autoPause.enabled);
     overlay.setRepeatAvailable(false);
+    overlay.setBlurred(this.blurred);
 
     const signal = this.listeners.signal;
     video.addEventListener('playing', this.thaw, { signal });
@@ -67,6 +69,13 @@ export class StudyControls {
         break;
       case 'repeat-slow':
         this.repeat(true);
+        break;
+      case 'blur':
+        this.blurred = !this.blurred;
+        this.overlay.setBlurred(this.blurred);
+        break;
+      case 'reveal':
+        this.overlay.revealPortuguese();
         break;
     }
     this.overlay.flashStrip();

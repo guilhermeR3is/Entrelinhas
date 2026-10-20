@@ -212,3 +212,58 @@ test('Shift+R repeats the sentence at 0.75x and gives the speed back at its end'
   expect((await playback(page)).rate).toBe(1);
   await expect(page.locator('.speed')).toHaveText('1x');
 });
+
+test('B blurs the Portuguese, V and the mouse show it until the next sentence', async ({
+  page,
+}) => {
+  const portuguese = page.locator('.portuguese');
+  const filter = () => portuguese.evaluate((element) => getComputedStyle(element).filter);
+  await page.mouse.move(5, 5);
+  await seekTo(page, 3);
+  await page.keyboard.press('b');
+  await expect(page.getByRole('button', { name: 'Borrar português' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect.poll(filter).toContain('blur');
+
+  await page.keyboard.press('v');
+  await expect.poll(filter).toBe('none');
+  await seekTo(page, 0.6);
+  await expect.poll(filter).toContain('blur');
+
+  await page.locator('.english').hover();
+  await expect.poll(filter).toBe('none');
+});
+
+test('the caption box moves by its handle and the arrow keys, always inside the video', async ({
+  page,
+}) => {
+  const place = async () => {
+    const [box, player] = await Promise.all([
+      page.locator('.box').boundingBox(),
+      page.locator('#player').boundingBox(),
+    ]);
+    if (!box || !player) throw new Error('Missing caption box or player');
+    return {
+      left: box.x - player.x,
+      top: box.y - player.y,
+      bottom: player.y + player.height - (box.y + box.height),
+    };
+  };
+  const handle = page.getByRole('button', { name: 'Mover a legenda' });
+  const start = await handle.boundingBox();
+  if (!start) throw new Error('Missing handle');
+
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(0, 0, { steps: 8 });
+  await page.mouse.up();
+  expect(await place()).toMatchObject({ left: 0, top: 0 });
+
+  await handle.focus();
+  await page.keyboard.press('ArrowDown');
+  expect((await place()).top).toBeCloseTo(13.5, 0);
+  await page.keyboard.press('Enter');
+  expect((await place()).bottom).toBeCloseTo(10.8, 0);
+});

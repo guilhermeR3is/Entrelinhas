@@ -54,6 +54,12 @@ describe('SubtitleSession', () => {
     const { window } = new JSDOM(PLAYER_HTML);
     document = window.document;
     vi.stubGlobal('MutationObserver', window.MutationObserver);
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe = vi.fn();
+      },
+    );
     vi.stubGlobal('AbortController', window.AbortController);
     frames = [];
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {

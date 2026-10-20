@@ -1,5 +1,5 @@
 import { JSDOM } from 'jsdom';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SubtitleOverlay } from '../overlay/subtitle-overlay';
 import { SubtitleTrack } from '../subtitles/subtitle-track';
 import { StudyControls } from './study-controls';
@@ -34,7 +34,17 @@ describe('StudyControls', () => {
   let container: HTMLElement;
   let controls: StudyControls;
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe = vi.fn();
+      },
+    );
     container = new JSDOM().window.document.body;
     const overlay = new SubtitleOverlay(container);
     video = new FakeVideo();
@@ -55,6 +65,15 @@ describe('StudyControls', () => {
     controls.handle('auto-pause');
     expect(autoPauseButton().getAttribute('aria-pressed')).toBe('true');
     expect(container.querySelector('.strip')?.classList.contains('shown')).toBe(false);
+  });
+
+  it('switches the blur with B and reveals the sentence with V', () => {
+    controls.handle('blur');
+    expect(container.querySelector('.box')?.classList.contains('blurred')).toBe(true);
+    controls.handle('reveal');
+    expect(container.querySelector('.portuguese')?.classList.contains('revealed')).toBe(true);
+    controls.handle('blur');
+    expect(container.querySelector('.box')?.classList.contains('blurred')).toBe(false);
   });
 
   it('pauses at the end of the sentence and keeps showing it until the video plays again', () => {
@@ -116,7 +135,7 @@ describe('StudyControls', () => {
 
   describe('repeating', () => {
     function repeatButton(): HTMLElement {
-      const button = container.querySelectorAll<HTMLElement>('.strip button')[3];
+      const button = container.querySelectorAll<HTMLElement>('.strip button:not(.handle)')[3];
       if (!button) throw new Error('Missing repeat button');
       return button;
     }
