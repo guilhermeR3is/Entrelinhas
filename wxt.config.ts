@@ -17,7 +17,7 @@ export default defineConfig({
     const testPages = mode === 'e2e' ? ['http://localhost/*'] : [];
     return {
       name: 'Projeto Bilíngue',
-      permissions: ['storage', 'scripting'],
+      permissions: ['storage', 'scripting', 'activeTab'],
       host_permissions: ['https://www.youtube.com/*', ...testPages],
       optional_host_permissions: ['https://*/*'],
       web_accessible_resources: [

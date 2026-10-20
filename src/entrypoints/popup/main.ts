@@ -4,7 +4,11 @@ import './style.css';
 import { browser } from 'wxt/browser';
 import { logger } from '../../logger';
 import { tabStatusFromUrl } from '../../tab-status';
-import { entryFor, thumbTabLetter, type EntryState } from './entry';
+import { SITE_DEACTIVATED } from '../../universal/site-message';
+import { ACTION_LABELS, entryFor, thumbTabLetter, type EntryState } from './entry';
+
+type SiteState = Extract<EntryState, { origin: string }>;
+type CurrentTab = { state: EntryState; tabId: number | undefined };
 
 const SLOW_CHECK_NOTICE_MS = 150;
 const REVEAL_EASING = 'cubic-bezier(0.23, 1, 0.32, 1)';
@@ -21,9 +25,10 @@ const entry = element('.entry');
 const headword = element('.headword');
 const wordClass = element('.word-class');
 const definition = element('.definition');
-const retry = element('.retry');
+const action = element('.entry-action');
 const thumbTab = element('.thumb-tab');
 const shortcutsLink = element('.shortcuts-link');
+let current: CurrentTab = { state: { kind: 'error' }, tabId: undefined };
 
 function reveal(): void {
   const from = reducedMotion.matches
@@ -35,16 +40,33 @@ function reveal(): void {
   });
 }
 
+function breakAtDots(text: string): Node[] {
+  const parts = text.split('.');
+  return parts.flatMap((part, index) =>
+    index < parts.length - 1
+      ? [document.createTextNode(`${part}.`), document.createElement('wbr')]
+      : [document.createTextNode(part)],
+  );
+}
+
+function setBusy(busy: boolean): void {
+  action.toggleAttribute('disabled', busy);
+  if (busy) action.setAttribute('aria-busy', 'true');
+  else action.removeAttribute('aria-busy');
+}
+
 function show(state: EntryState, { animate }: { animate: boolean }): void {
+  current = { ...current, state };
   const view = entryFor(state);
-  headword.textContent = view.headword;
+  headword.replaceChildren(...breakAtDots(view.headword));
   wordClass.textContent = view.wordClass;
   definition.textContent = view.definition;
   thumbTab.dataset.state = view.thumbTab;
   thumbTab.textContent = view.thumbTab === 'lit' ? thumbTabLetter(view.headword) : '';
-  retry.hidden = !view.retry;
-  retry.toggleAttribute('disabled', false);
-  retry.removeAttribute('aria-busy');
+  action.hidden = view.action === null;
+  action.dataset.action = view.action ?? '';
+  action.textContent = view.action ? ACTION_LABELS[view.action] : '';
+  setBusy(false);
   checking.hidden = true;
   entry.hidden = false;
   if (animate) reveal();
@@ -56,29 +78,71 @@ async function firstCheck(): Promise<void> {
   }, SLOW_CHECK_NOTICE_MS);
 
   try {
-    const state = await readCurrentTab();
-    show(state, { animate: !checking.hidden });
+    const tab = await readCurrentTab();
+    current = tab;
+    show(tab.state, { animate: !checking.hidden });
   } finally {
     clearTimeout(slowNotice);
   }
 }
 
 async function recheck(): Promise<void> {
-  retry.toggleAttribute('disabled', true);
-  retry.setAttribute('aria-busy', 'true');
-  const state = await readCurrentTab();
-  show(state, { animate: state.kind !== 'error' });
-  if (state.kind === 'error') retry.focus();
+  setBusy(true);
+  const tab = await readCurrentTab();
+  current = tab;
+  show(tab.state, { animate: tab.state.kind !== 'error' });
+  if (tab.state.kind === 'error') action.focus();
 }
 
-async function readCurrentTab(): Promise<EntryState> {
+async function readCurrentTab(): Promise<CurrentTab> {
   try {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    return tabStatusFromUrl(tab?.url);
+    const { origins = [] } = await browser.permissions.getAll();
+    return { state: tabStatusFromUrl(tab?.url, origins), tabId: tab?.id };
   } catch (error) {
     logger.error('Could not read the active tab', error);
-    return { kind: 'error' };
+    return { state: { kind: 'error' }, tabId: undefined };
   }
+}
+
+async function activate({ site, origin }: SiteState): Promise<void> {
+  setBusy(true);
+  try {
+    const granted = await browser.permissions.request({ origins: [origin] });
+    show({ kind: granted ? 'enabled' : 'denied', site, origin }, { animate: true });
+  } catch (error) {
+    logger.error('Could not ask Chrome for the site', error);
+    show({ kind: 'error' }, { animate: true });
+  }
+}
+
+async function deactivate({ site, origin }: SiteState): Promise<void> {
+  setBusy(true);
+  try {
+    await browser.permissions.remove({ origins: [origin] });
+  } catch (error) {
+    logger.error('Could not turn the site off', error);
+    show({ kind: 'error' }, { animate: true });
+    return;
+  }
+  if (current.tabId !== undefined) {
+    browser.tabs.sendMessage(current.tabId, SITE_DEACTIVATED).catch((error: unknown) => {
+      logger.error('Could not reach the open tab', error);
+    });
+  }
+  show({ kind: 'available', site, origin }, { animate: true });
+}
+
+function runAction(): void {
+  const { state } = current;
+  const chosen = action.dataset.action;
+  if (chosen === 'retry') {
+    void recheck();
+    return;
+  }
+  if (!('origin' in state)) return;
+  if (chosen === 'activate') void activate(state);
+  if (chosen === 'deactivate') void deactivate(state);
 }
 
 async function openShortcuts(): Promise<void> {
@@ -95,5 +159,5 @@ shortcutsLink.addEventListener('click', (event) => {
   event.preventDefault();
   void openShortcuts();
 });
-retry.addEventListener('click', () => void recheck());
+action.addEventListener('click', runAction);
 void firstCheck();

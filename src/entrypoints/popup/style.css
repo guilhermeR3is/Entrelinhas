@@ -47,7 +47,7 @@ body {
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.01em;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .word-class {
@@ -60,7 +60,7 @@ body {
   text-wrap: pretty;
 }
 
-.retry {
+.entry-action {
   margin-top: var(--space-4);
 }
 
@@ -90,7 +90,7 @@ body {
   border-radius: 4px;
 }
 
-.retry:disabled {
+.entry-action:disabled {
   cursor: progress;
 }
 

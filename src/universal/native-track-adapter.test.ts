@@ -172,6 +172,22 @@ describe('NativeTrackAdapter as the player', () => {
     expect(onCaptionsChange).toHaveBeenCalledTimes(1);
   });
 
+  it('gives the site back the subtitles it was drawing when stopped', () => {
+    const english = track({ mode: 'showing', cues: HELLO_CUES });
+    const spanish = track({ language: 'es', mode: 'showing' });
+    const portuguese = track({ language: 'pt', mode: 'disabled' });
+    const adapter = createAdapter([english, spanish, portuguese]);
+    adapter.status();
+    expect([english.mode, spanish.mode, portuguese.mode]).toEqual(['hidden', 'disabled', 'hidden']);
+
+    adapter.stop();
+    expect([english.mode, spanish.mode, portuguese.mode]).toEqual([
+      'showing',
+      'showing',
+      'disabled',
+    ]);
+  });
+
   it('hides the English track when the session hides the site captions', () => {
     const english = track({ mode: 'showing' });
     createAdapter([english]).hideSiteCaptions();

@@ -10,12 +10,20 @@ import { StudyPreferenceStore } from '../study/study-preferences';
 import { PortugueseTranslation } from '../translation/portuguese-translation';
 import { findTranslatorApi } from '../translation/translator-api';
 import { NativeTrackAdapter } from '../universal/native-track-adapter';
+import { isSiteDeactivated } from '../universal/site-message';
 import { coverVideo } from '../universal/video-cover';
 
 export default defineContentScript({
   registration: 'runtime',
   cssInjectionMode: 'manual',
   async main(ctx) {
+    const stopOnDeactivation = (message: unknown) => {
+      if (isSiteDeactivated(message)) ctx.abort();
+    };
+    browser.runtime.onMessage.addListener(stopOnDeactivation);
+    ctx.onInvalidated(() => {
+      browser.runtime.onMessage.removeListener(stopOnDeactivation);
+    });
     let session: SubtitleSession | undefined;
     let cover: ResizeObserver | undefined;
     let fontLoaded = false;

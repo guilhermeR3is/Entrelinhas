@@ -24,6 +24,7 @@ const PORTUGUESE_LABEL = /^portugu(?:ese|ês)\b/i;
 
 export class NativeTrackAdapter implements PlayerAdapter {
   private readonly listeners = new AbortController();
+  private readonly siteModes = new Map<NativeTrack, TextTrackMode>();
   private chosenEnglish: NativeTrack | null = null;
   private english: ReadTrack | null = null;
   private portuguese: ReadTrack | null = null;
@@ -43,6 +44,8 @@ export class NativeTrackAdapter implements PlayerAdapter {
 
   stop(): void {
     this.listeners.abort();
+    for (const [track, mode] of this.siteModes) track.mode = mode;
+    this.siteModes.clear();
   }
 
   video(): HTMLVideoElement {
@@ -101,14 +104,20 @@ export class NativeTrackAdapter implements PlayerAdapter {
 
     for (const track of english ? tracks : []) {
       if (track === english || track === portuguese) {
-        if (track.mode !== 'hidden') track.mode = 'hidden';
+        this.setMode(track, 'hidden');
       } else if (track.mode === 'showing') {
-        track.mode = 'disabled';
+        this.setMode(track, 'disabled');
       }
     }
     this.english = readTrack(english, 'en', this.english);
     this.portuguese = readTrack(portuguese, 'pt', this.portuguese);
     return { tracks, english };
+  }
+
+  private setMode(track: NativeTrack, mode: TextTrackMode): void {
+    if (track.mode === mode) return;
+    if (!this.siteModes.has(track)) this.siteModes.set(track, track.mode);
+    track.mode = mode;
   }
 
   private failedToLoad(track: NativeTrack): boolean {

@@ -1,14 +1,23 @@
 import type { TabStatus } from '../../tab-status';
 
-export type EntryState = TabStatus | { kind: 'error' };
+export type EntryState =
+  TabStatus | { kind: 'denied'; site: string; origin: string } | { kind: 'error' };
+
+export type EntryAction = 'activate' | 'deactivate' | 'retry';
 
 export interface Entry {
   headword: string;
   wordClass: string;
   definition: string;
   thumbTab: 'lit' | 'hidden';
-  retry: boolean;
+  action: EntryAction | null;
 }
+
+export const ACTION_LABELS: Record<EntryAction, string> = {
+  activate: 'Ativar neste site',
+  deactivate: 'Desativar neste site',
+  retry: 'Tentar de novo',
+};
 
 export function entryFor(state: EntryState): Entry {
   switch (state.kind) {
@@ -18,15 +27,39 @@ export function entryFor(state: EntryState): Entry {
         wordClass: 'site compatível',
         definition: 'Ativa aqui.',
         thumbTab: 'lit',
-        retry: false,
+        action: null,
       };
-    case 'inactive':
+    case 'available':
       return {
-        headword: 'Este site',
-        wordClass: 'não compatível',
-        definition: 'Por enquanto, só funciona no YouTube.',
+        headword: state.site,
+        wordClass: 'não ativado',
+        definition: 'Ative para ver a legenda dupla nos vídeos daqui.',
         thumbTab: 'hidden',
-        retry: false,
+        action: 'activate',
+      };
+    case 'enabled':
+      return {
+        headword: state.site,
+        wordClass: 'ativado por você',
+        definition: 'Ativa aqui.',
+        thumbTab: 'lit',
+        action: 'deactivate',
+      };
+    case 'denied':
+      return {
+        headword: state.site,
+        wordClass: 'não ativado',
+        definition: 'O Chrome ficou sem a permissão. Pode tentar de novo.',
+        thumbTab: 'hidden',
+        action: 'activate',
+      };
+    case 'unsupported':
+      return {
+        headword: 'Esta página',
+        wordClass: 'não compatível',
+        definition: 'Funciona em sites com endereço https.',
+        thumbTab: 'hidden',
+        action: null,
       };
     case 'error':
       return {
@@ -34,7 +67,7 @@ export function entryFor(state: EntryState): Entry {
         wordClass: 'sem resposta',
         definition: 'Não deu para verificar agora.',
         thumbTab: 'hidden',
-        retry: true,
+        action: 'retry',
       };
   }
 }

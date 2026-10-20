@@ -83,3 +83,35 @@ test('Z slows the video down on any site', async ({ page }) => {
     .poll(() => page.evaluate(() => document.querySelector('video')?.playbackRate))
     .toBe(0.95);
 });
+
+test('steps aside and gives the site its subtitles back when the person turns the site off', async ({
+  context,
+  page,
+}) => {
+  await page.goto('/native-tracks.html');
+  await seek(page, 0.75);
+  await expect(page.locator(ENGLISH)).toBeVisible();
+
+  const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  await worker.evaluate(async () => {
+    const tabs = (
+      globalThis as unknown as {
+        chrome: {
+          tabs: {
+            query: (filter: object) => Promise<{ id?: number }[]>;
+            sendMessage: (tabId: number, message: unknown) => Promise<unknown>;
+          };
+        };
+      }
+    ).chrome.tabs;
+    const [tab] = await tabs.query({ url: 'http://localhost/*' });
+    if (tab?.id === undefined) throw new Error('Test page tab not found');
+    await tabs.sendMessage(tab.id, { type: 'projeto-bilingue:site-deactivated' }).catch(() => null);
+  });
+
+  await expect(page.locator(OVERLAY)).toHaveCount(0);
+  const modes = await page.evaluate(() =>
+    Array.from(document.querySelector('video')?.textTracks ?? [], (track) => track.mode),
+  );
+  expect(modes).toEqual(['showing', 'disabled']);
+});

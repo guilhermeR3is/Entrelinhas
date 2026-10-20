@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { tabStatusFromUrl } from './tab-status';
 
-const inactive = { kind: 'inactive' };
+const unsupported = { kind: 'unsupported' };
 
 describe('tabStatusFromUrl', () => {
   it('is active on a YouTube video page and names the site without www', () => {
@@ -18,26 +18,51 @@ describe('tabStatusFromUrl', () => {
     });
   });
 
-  it('is inactive when the browser hides the url from the extension', () => {
-    expect(tabStatusFromUrl(undefined)).toEqual(inactive);
+  it('offers any other https site for the person to turn on, asking for that exact address', () => {
+    expect(tabStatusFromUrl('https://www.example.com/aula/3')).toEqual({
+      kind: 'available',
+      site: 'example.com',
+      origin: 'https://www.example.com/*',
+    });
   });
 
-  it('is inactive on sites without an adapter', () => {
-    expect(tabStatusFromUrl('https://www.netflix.com/watch/123')).toEqual(inactive);
+  it('is enabled on a site the person already turned on', () => {
+    expect(
+      tabStatusFromUrl('https://aulas.example.com/video', ['https://aulas.example.com/*']),
+    ).toEqual({
+      kind: 'enabled',
+      site: 'aulas.example.com',
+      origin: 'https://aulas.example.com/*',
+    });
   });
 
-  it('is inactive on look-alike hosts', () => {
-    expect(tabStatusFromUrl('https://www.youtube.com.evil.example/watch')).toEqual(inactive);
-    expect(tabStatusFromUrl('https://notwww.youtube.com/')).toEqual(inactive);
+  it('keeps another address of the same site off until it is turned on too', () => {
+    expect(tabStatusFromUrl('https://example.com/', ['https://www.example.com/*']).kind).toBe(
+      'available',
+    );
   });
 
-  it('is inactive on plain http', () => {
-    expect(tabStatusFromUrl('http://www.youtube.com/')).toEqual(inactive);
+  it('shows a site with accents as people write it and asks for it as the browser writes it', () => {
+    expect(tabStatusFromUrl('https://www.xn--caf-dma.com.br/')).toEqual({
+      kind: 'available',
+      site: 'café.com.br',
+      origin: 'https://www.xn--caf-dma.com.br/*',
+    });
   });
 
-  it('is inactive on browser pages and malformed urls', () => {
-    expect(tabStatusFromUrl('chrome://extensions')).toEqual(inactive);
-    expect(tabStatusFromUrl('not a url')).toEqual(inactive);
-    expect(tabStatusFromUrl('')).toEqual(inactive);
+  it('treats look-alike hosts as ordinary sites, not as YouTube', () => {
+    expect(tabStatusFromUrl('https://www.youtube.com.evil.example/watch').kind).toBe('available');
+    expect(tabStatusFromUrl('https://notwww.youtube.com/').kind).toBe('available');
+  });
+
+  it('is unsupported when the browser hides the url from the extension', () => {
+    expect(tabStatusFromUrl(undefined)).toEqual(unsupported);
+  });
+
+  it('is unsupported on plain http, browser pages, files and malformed urls', () => {
+    expect(tabStatusFromUrl('http://www.youtube.com/')).toEqual(unsupported);
+    expect(tabStatusFromUrl('chrome://extensions')).toEqual(unsupported);
+    expect(tabStatusFromUrl('file:///Users/ana/aula.html')).toEqual(unsupported);
+    expect(tabStatusFromUrl('not a url')).toEqual(unsupported);
   });
 });

@@ -1,14 +1,100 @@
-import { expect, stubActiveTab, test } from './fixtures';
+import type { Page } from '@playwright/test';
+import { expect, stubActiveTab, stubPermissions, test } from './fixtures';
 
-test('reports an unsupported site with the real tabs API', async ({ context, popupUrl }) => {
+function permissionCalls(popup: Page): Promise<string[]> {
+  return popup.evaluate(() => (window as unknown as { permissionCalls: string[] }).permissionCalls);
+}
+
+test('reports a page without https as unsupported with the real tabs API', async ({
+  context,
+  popupUrl,
+}) => {
   const popup = await context.newPage();
   await popup.goto(popupUrl);
 
-  await expect(popup.getByRole('heading', { name: 'Este site' })).toBeVisible();
+  await expect(popup.getByRole('heading', { name: 'Esta página' })).toBeVisible();
   await expect(popup.getByRole('status')).toContainText('não compatível');
-  await expect(popup.getByRole('status')).toContainText('Por enquanto, só funciona no YouTube.');
-  await expect(popup.getByRole('button', { name: 'Tentar de novo' })).toBeHidden();
+  await expect(popup.getByRole('status')).toContainText('Funciona em sites com endereço https.');
+  await expect(popup.getByRole('button')).toBeHidden();
   await expect(popup.locator('.thumb-tab')).toBeHidden();
+});
+
+test('turns a site on after Chrome says yes, asking only for that address', async ({
+  context,
+  popupUrl,
+}) => {
+  const popup = await context.newPage();
+  await stubActiveTab(popup, { url: 'https://www.example.com/aula/3' });
+  await stubPermissions(popup, { answer: true });
+  await popup.goto(popupUrl);
+
+  await expect(popup.getByRole('heading', { name: 'example.com' })).toBeVisible();
+  await expect(popup.getByRole('status')).toContainText('não ativado');
+  await expect(popup.locator('.thumb-tab')).toBeHidden();
+  await popup.getByRole('button', { name: 'Ativar neste site' }).click();
+
+  await expect(popup.getByRole('status')).toContainText('ativado por você');
+  await expect(popup.locator('.thumb-tab')).toHaveText('E');
+  await expect(popup.getByRole('button', { name: 'Desativar neste site' })).toBeVisible();
+  expect(await permissionCalls(popup)).toEqual(['request https://www.example.com/*']);
+});
+
+test('lets the person try again after saying no to Chrome', async ({ context, popupUrl }) => {
+  const popup = await context.newPage();
+  await stubActiveTab(popup, { url: 'https://www.example.com/' });
+  await stubPermissions(popup, { answer: false });
+  await popup.goto(popupUrl);
+
+  await popup.getByRole('button', { name: 'Ativar neste site' }).click();
+  await expect(popup.getByRole('status')).toContainText(
+    'O Chrome ficou sem a permissão. Pode tentar de novo.',
+  );
+  await expect(popup.getByRole('button', { name: 'Ativar neste site' })).toBeEnabled();
+});
+
+test('turns off a site the person had turned on', async ({ context, popupUrl }) => {
+  const popup = await context.newPage();
+  await stubActiveTab(popup, { url: 'https://www.example.com/' });
+  await stubPermissions(popup, { granted: ['https://www.example.com/*'] });
+  await popup.goto(popupUrl);
+
+  await expect(popup.getByRole('status')).toContainText('ativado por você');
+  await popup.getByRole('button', { name: 'Desativar neste site' }).click();
+
+  await expect(popup.getByRole('status')).toContainText('não ativado');
+  await expect(popup.locator('.thumb-tab')).toBeHidden();
+  expect(await permissionCalls(popup)).toEqual(['remove https://www.example.com/*']);
+});
+
+test('shows a site with accents as people write it, breaking long names only at the dots', async ({
+  context,
+  popupUrl,
+}) => {
+  const popup = await context.newPage();
+  await stubActiveTab(popup, {
+    url: 'https://www.cursosdeingles.aulasonline.xn--caf-dma.com.br/',
+  });
+  await stubPermissions(popup, {});
+  await popup.goto(popupUrl);
+
+  const headword = popup.getByRole('heading', { level: 1 });
+  await expect(headword).toHaveText('cursosdeingles.aulasonline.café.com.br');
+  const lineEndings = await headword.evaluate((element) => {
+    const lines = new Map<number, string>();
+    for (const node of Array.from(element.childNodes)) {
+      const text = node.textContent ?? '';
+      for (let index = 0; index < text.length; index += 1) {
+        const range = element.ownerDocument.createRange();
+        range.setStart(node, index);
+        range.setEnd(node, index + 1);
+        const top = Math.round(range.getBoundingClientRect().top);
+        lines.set(top, (lines.get(top) ?? '') + text.charAt(index));
+      }
+    }
+    return Array.from(lines.values(), (line) => line.at(-1));
+  });
+  expect(lineEndings.length).toBeGreaterThan(1);
+  for (const ending of lineEndings.slice(0, -1)) expect(ending).toBe('.');
 });
 
 test('reports YouTube as active and lights the thumb tab', async ({ context, popupUrl }) => {
@@ -76,7 +162,7 @@ test('opens the shortcuts page from the link at the foot of the popup', async ({
     window.open = () => null;
   });
   await popup.goto(popupUrl);
-  await expect(popup.getByRole('heading', { name: 'Este site' })).toBeVisible();
+  await expect(popup.getByRole('heading', { name: 'Esta página' })).toBeVisible();
 
   const [options] = await Promise.all([
     context.waitForEvent('page'),

@@ -31,6 +31,35 @@ export async function stubActiveTab(page: Page, stub: ActiveTabStub): Promise<vo
   }, stub);
 }
 
+export interface PermissionsStub {
+  granted?: string[];
+  answer?: boolean;
+}
+
+export async function stubPermissions(page: Page, stub: PermissionsStub): Promise<void> {
+  await page.addInitScript((permissionsStub: PermissionsStub) => {
+    const granted = new Set(permissionsStub.granted ?? []);
+    const calls: string[] = [];
+    Object.assign(window, { permissionCalls: calls });
+    const permissions = (globalThis as unknown as { chrome: { permissions: object } }).chrome
+      .permissions;
+    const define = (name: string, value: unknown) => {
+      Object.defineProperty(permissions, name, { value });
+    };
+    define('getAll', () => Promise.resolve({ origins: [...granted] }));
+    define('request', ({ origins = [] }: { origins?: string[] }) => {
+      calls.push(`request ${origins.join()}`);
+      if (permissionsStub.answer) for (const origin of origins) granted.add(origin);
+      return Promise.resolve(permissionsStub.answer ?? false);
+    });
+    define('remove', ({ origins = [] }: { origins?: string[] }) => {
+      calls.push(`remove ${origins.join()}`);
+      for (const origin of origins) granted.delete(origin);
+      return Promise.resolve(true);
+    });
+  }, stub);
+}
+
 export const test = base.extend<{ context: BrowserContext; popupUrl: string; optionsUrl: string }>({
   context: async ({}, use) => {
     const context = await chromium.launchPersistentContext('', {
