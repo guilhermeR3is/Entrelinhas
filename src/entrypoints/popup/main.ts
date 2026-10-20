@@ -23,6 +23,7 @@ const wordClass = element('.word-class');
 const definition = element('.definition');
 const retry = element('.retry');
 const thumbTab = element('.thumb-tab');
+const shortcutsLink = element('.shortcuts-link');
 
 function reveal(): void {
   const from = reducedMotion.matches
@@ -80,5 +81,19 @@ async function readCurrentTab(): Promise<EntryState> {
   }
 }
 
+async function openShortcuts(): Promise<void> {
+  try {
+    await browser.runtime.openOptionsPage();
+    window.close();
+  } catch (error) {
+    logger.error('Could not open the shortcuts page', error);
+    window.open(shortcutsLink.getAttribute('href') ?? '', '_blank');
+  }
+}
+
+shortcutsLink.addEventListener('click', (event) => {
+  event.preventDefault();
+  void openShortcuts();
+});
 retry.addEventListener('click', () => void recheck());
 void firstCheck();

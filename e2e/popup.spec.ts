@@ -66,3 +66,22 @@ test('keeps the error in place while retrying and keeps focus on retry', async (
   await popup.keyboard.press('Enter');
   await expect(popup.getByRole('heading', { name: 'youtube.com' })).toBeVisible();
 });
+
+test('opens the shortcuts page from the link at the foot of the popup', async ({
+  context,
+  popupUrl,
+}) => {
+  const popup = await context.newPage();
+  await popup.addInitScript(() => {
+    window.open = () => null;
+  });
+  await popup.goto(popupUrl);
+  await expect(popup.getByRole('heading', { name: 'Este site' })).toBeVisible();
+
+  const [options] = await Promise.all([
+    context.waitForEvent('page'),
+    popup.getByRole('link', { name: 'Atalhos do teclado' }).click(),
+  ]);
+  await expect(options.getByRole('heading', { level: 1 })).toHaveText('Atalhos do teclado');
+  expect(new URL(options.url()).pathname).toBe('/options.html');
+});

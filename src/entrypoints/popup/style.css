@@ -64,6 +64,32 @@ body {
   margin-top: var(--space-4);
 }
 
+.page-foot {
+  padding: var(--space-2) var(--space-5) var(--space-3);
+  border-top: 1px solid var(--rule);
+  font-size: var(--text-small);
+}
+
+.shortcuts-link {
+  color: var(--ink);
+  text-decoration-color: var(--note);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  transition: text-decoration-color 120ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .shortcuts-link:hover {
+    text-decoration-color: var(--ink);
+  }
+}
+
+.shortcuts-link:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 .retry:disabled {
   cursor: progress;
 }
