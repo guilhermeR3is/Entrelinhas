@@ -3,7 +3,6 @@ import type { TranslationState } from '../overlay/subtitle-overlay';
 import type { Cue } from '../subtitles/cue';
 import type { SubtitleTrack } from '../subtitles/subtitle-track';
 import { CueTranslator } from './cue-translator';
-import { groupSentences } from './sentence-groups';
 import type { TranslatorApi } from './translator-api';
 import { prepareTranslator, type TranslatorStatus } from './translator-setup';
 
@@ -62,7 +61,7 @@ export class PortugueseTranslation {
     if (this.translationState?.kind === 'translation-failed') this.translationState = null;
 
     cueTranslator
-      .translateTrack(groupSentences(english.cues), {
+      .translateTrack(english.cues, {
         playheadMs: () => this.playheadMs,
         onUpdate: (portuguese) => {
           job.portuguese = portuguese;

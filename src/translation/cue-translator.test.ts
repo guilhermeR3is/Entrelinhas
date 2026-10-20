@@ -10,7 +10,7 @@ import { serveTranslationCache } from './translation-service';
 
 const EN_PT = { sourceLanguage: 'en', targetLanguage: 'pt' };
 
-function sentencesOf(...texts: string[]): Cue[] {
+function cuesOf(...texts: string[]): Cue[] {
   return texts.map((text, index) => ({
     id: index,
     startMs: index * 1000,
@@ -36,11 +36,11 @@ function fakeTranslator(onTranslate: (text: string) => void = () => undefined) {
 
 async function translateAll(
   cueTranslator: CueTranslator,
-  sentences: readonly Cue[],
+  cues: readonly Cue[],
   options: { playheadMs?: number; signal?: AbortSignal } = {},
 ) {
   const updates: SubtitleTrack[] = [];
-  await cueTranslator.translateTrack(sentences, {
+  await cueTranslator.translateTrack(cues, {
     playheadMs: () => options.playheadMs ?? 0,
     onUpdate: (track) => updates.push(track),
     signal: options.signal ?? new AbortController().signal,
@@ -59,11 +59,11 @@ describe('CueTranslator', () => {
     vi.unstubAllGlobals();
   });
 
-  it('builds a Portuguese track with the times of the English sentences', async () => {
+  it('builds a Portuguese track with the times of the English cues', async () => {
     const { translator } = fakeTranslator();
     const updates = await translateAll(
       new CueTranslator(translator, EN_PT),
-      sentencesOf('Hello.', 'Bye.'),
+      cuesOf('Hello.', 'Bye.'),
     );
 
     const portuguese = updates.at(-1);
@@ -74,23 +74,21 @@ describe('CueTranslator', () => {
     expect(portuguese?.activeAt(1500).map((cue) => cue.text)).toEqual(['pt:Bye.']);
   });
 
-  it('starts at the playhead, then goes back from the nearest sentence', async () => {
+  it('starts at the playhead, then goes back from the nearest cue', async () => {
     const { translator, asked } = fakeTranslator();
-    await translateAll(new CueTranslator(translator, EN_PT), sentencesOf('a', 'b', 'c', 'd', 'e'), {
+    await translateAll(new CueTranslator(translator, EN_PT), cuesOf('a', 'b', 'c', 'd', 'e'), {
       playheadMs: 2500,
     });
     expect(asked).toEqual(['c', 'd', 'e', 'b', 'a']);
   });
 
   it('follows the playhead between batches', async () => {
-    const sentences = sentencesOf(
-      ...Array.from({ length: 30 }, (_, index) => `line ${String(index)}`),
-    );
+    const cues = cuesOf(...Array.from({ length: 30 }, (_, index) => `line ${String(index)}`));
     let playheadMs = 0;
     const { translator, asked } = fakeTranslator((text) => {
       if (text === 'line 19') playheadMs = 25_500;
     });
-    await translateAll(new CueTranslator(translator, EN_PT), sentences, {
+    await translateAll(new CueTranslator(translator, EN_PT), cues, {
       get playheadMs() {
         return playheadMs;
       },
@@ -99,13 +97,13 @@ describe('CueTranslator', () => {
     expect(asked).toHaveLength(30);
   });
 
-  it('shows the track after every batch of twenty sentences', async () => {
+  it('shows each translation as soon as it is ready, without waiting for the batch', async () => {
     const { translator } = fakeTranslator();
-    const sentences = sentencesOf(
-      ...Array.from({ length: 45 }, (_, index) => `line ${String(index)}`),
+    const cues = cuesOf(...Array.from({ length: 45 }, (_, index) => `line ${String(index)}`));
+    const updates = await translateAll(new CueTranslator(translator, EN_PT), cues);
+    expect(updates.map((track) => track.cues.length)).toEqual(
+      Array.from({ length: 45 }, (_, index) => index + 1),
     );
-    const updates = await translateAll(new CueTranslator(translator, EN_PT), sentences);
-    expect(updates.map((track) => track.cues.length)).toEqual([20, 40, 45]);
   });
 
   it('uses saved translations without asking the translator', async () => {
@@ -113,7 +111,7 @@ describe('CueTranslator', () => {
     const { translator, asked } = fakeTranslator();
     const updates = await translateAll(
       new CueTranslator(translator, EN_PT),
-      sentencesOf('Hello.', 'Bye.'),
+      cuesOf('Hello.', 'Bye.'),
     );
 
     expect(asked).toEqual(['Bye.']);
@@ -125,18 +123,18 @@ describe('CueTranslator', () => {
 
   it('saves new translations for the next time', async () => {
     const { translator } = fakeTranslator();
-    await translateAll(new CueTranslator(translator, EN_PT), sentencesOf('Hello.', 'Bye.'));
+    await translateAll(new CueTranslator(translator, EN_PT), cuesOf('Hello.', 'Bye.'));
     expect(await findCachedTranslations(EN_PT, ['Hello.', 'Bye.'])).toEqual([
       'pt:Hello.',
       'pt:Bye.',
     ]);
   });
 
-  it('translates a repeated sentence only once', async () => {
+  it('translates a repeated cue only once', async () => {
     const { translator, asked } = fakeTranslator();
     const updates = await translateAll(
       new CueTranslator(translator, EN_PT),
-      sentencesOf('Yeah.', 'No.', 'Yeah.'),
+      cuesOf('Yeah.', 'No.', 'Yeah.'),
     );
     expect(asked).toEqual(['Yeah.', 'No.']);
     expect(updates.at(-1)?.cues.map((cue) => cue.text)).toEqual(['pt:Yeah.', 'pt:No.', 'pt:Yeah.']);
@@ -149,12 +147,12 @@ describe('CueTranslator', () => {
     });
     const updates = await translateAll(
       new CueTranslator(translator, EN_PT),
-      sentencesOf('a', 'b', 'c'),
+      cuesOf('a', 'b', 'c'),
       { signal: controller.signal },
     );
 
     expect(asked).toEqual(['a', 'b']);
-    expect(updates).toEqual([]);
+    expect(updates.map((track) => track.cues.map((cue) => cue.text))).toEqual([['pt:a']]);
     expect(await findCachedTranslations(EN_PT, ['a', 'b'])).toEqual(['pt:a', null]);
   });
 
@@ -163,9 +161,9 @@ describe('CueTranslator', () => {
       translate: () => Promise.reject(new Error('model crashed')),
       destroy: () => undefined,
     };
-    await expect(
-      translateAll(new CueTranslator(failing, EN_PT), sentencesOf('Hello.')),
-    ).rejects.toThrow('model crashed');
+    await expect(translateAll(new CueTranslator(failing, EN_PT), cuesOf('Hello.'))).rejects.toThrow(
+      'model crashed',
+    );
   });
 
   it('translates a line read from the screen once and remembers it', async () => {

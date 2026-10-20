@@ -2,7 +2,7 @@ import { logger } from '../logger';
 import type { SubtitleOverlay } from '../overlay/subtitle-overlay';
 import type { Cue } from '../subtitles/cue';
 import type { SubtitleTrack } from '../subtitles/subtitle-track';
-import { groupSentences } from '../translation/sentence-groups';
+import { groupSentences } from '../subtitles/sentence-groups';
 import { AutoPause } from './auto-pause';
 import { PlaybackSpeed } from './playback-speed';
 import type { StudyCommand } from './study-keys';

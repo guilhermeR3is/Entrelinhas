@@ -1,0 +1,86 @@
+:root {
+  color-scheme: light dark;
+
+  --paper: #f5f6f3;
+  --ink: #17191e;
+  --note: #5e636b;
+  --rule: #d8dad5;
+  --accent: #1f3b99;
+  --on-accent: #f5f6f3;
+
+  --font: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif;
+  --text-small: 0.8125rem;
+  --text-body: 0.9375rem;
+  --text-headword: 1.375rem;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #17191e;
+    --ink: #f1f2ee;
+    --note: #a3a8b0;
+    --rule: #2e3138;
+    --accent: #8ea4f0;
+    --on-accent: #17191e;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.ink-button {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--note);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    transform 160ms var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ink-button:not(:disabled):hover {
+    background: var(--rule);
+  }
+}
+
+.ink-button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.ink-button:disabled {
+  color: var(--note);
+  cursor: default;
+}
+
+.ink-button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ink-button:not(:disabled):active {
+    transform: none;
+  }
+}

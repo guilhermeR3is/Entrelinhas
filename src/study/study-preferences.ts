@@ -47,6 +47,7 @@ export class StudyPreferenceStore {
   private constructor(
     private readonly storageArea: PreferenceStorage,
     private preferences: StudyPreferences,
+    readonly readFailed = false,
   ) {}
 
   static async load(storageArea: PreferenceStorage): Promise<StudyPreferenceStore> {
@@ -55,7 +56,7 @@ export class StudyPreferenceStore {
       stored = await storageArea.get(STORED_KEYS);
     } catch (error) {
       logger.error('Could not read the study preferences', error);
-      return new StudyPreferenceStore(storageArea, DEFAULT_PREFERENCES);
+      return new StudyPreferenceStore(storageArea, DEFAULT_PREFERENCES, true);
     }
     return new StudyPreferenceStore(storageArea, {
       speed: read('speed', stored),

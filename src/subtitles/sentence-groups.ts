@@ -1,4 +1,4 @@
-import type { Cue } from '../subtitles/cue';
+import type { Cue } from './cue';
 
 const MAX_CUES_PER_SENTENCE = 3;
 const CLOSERS = `["'”’)\\]]*`;

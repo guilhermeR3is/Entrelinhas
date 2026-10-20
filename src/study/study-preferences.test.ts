@@ -60,7 +60,10 @@ describe('StudyPreferenceStore', () => {
       set: () => Promise.resolve(),
       onChanged: storage.onChanged,
     };
-    expect((await StudyPreferenceStore.load(broken)).current).toEqual(DEFAULT_PREFERENCES);
+    const store = await StudyPreferenceStore.load(broken);
+    expect(store.current).toEqual(DEFAULT_PREFERENCES);
+    expect(store.readFailed).toBe(true);
+    expect((await StudyPreferenceStore.load(storage)).readFailed).toBe(false);
   });
 
   it('keeps the change in memory when the storage cannot be written', async () => {

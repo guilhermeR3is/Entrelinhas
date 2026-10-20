@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Cue } from '../subtitles/cue';
+import type { Cue } from './cue';
 import { groupSentences } from './sentence-groups';
 
 function cuesOf(...texts: string[]): Cue[] {

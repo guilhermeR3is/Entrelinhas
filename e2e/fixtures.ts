@@ -31,7 +31,7 @@ export async function stubActiveTab(page: Page, stub: ActiveTabStub): Promise<vo
   }, stub);
 }
 
-export const test = base.extend<{ context: BrowserContext; popupUrl: string }>({
+export const test = base.extend<{ context: BrowserContext; popupUrl: string; optionsUrl: string }>({
   context: async ({}, use) => {
     const context = await chromium.launchPersistentContext('', {
       channel: 'chromium',
@@ -42,6 +42,9 @@ export const test = base.extend<{ context: BrowserContext; popupUrl: string }>({
   },
   popupUrl: async ({}, use) => {
     await use(`chrome-extension://${unpackedExtensionId(extensionPath)}/popup.html`);
+  },
+  optionsUrl: async ({}, use) => {
+    await use(`chrome-extension://${unpackedExtensionId(extensionPath)}/options.html`);
   },
 });
 

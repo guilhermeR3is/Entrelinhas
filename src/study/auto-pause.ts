@@ -1,5 +1,5 @@
 import type { SubtitleTrack } from '../subtitles/subtitle-track';
-import { groupSentences } from '../translation/sentence-groups';
+import { groupSentences } from '../subtitles/sentence-groups';
 
 const MAX_FRAME_STEP_MS = 1000;
 

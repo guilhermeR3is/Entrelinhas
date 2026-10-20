@@ -21,49 +21,47 @@ export class CueTranslator {
   ) {}
 
   async translateTrack(
-    sentences: readonly Cue[],
+    cues: readonly Cue[],
     { playheadMs, onUpdate, signal }: TrackTranslationOptions,
   ): Promise<void> {
     const translated = new Map<number, Cue>();
-    const keep = (sentence: Cue, text: string) => {
-      translated.set(sentence.id, { ...sentence, text, lang: this.pair.targetLanguage });
+    const keep = (cue: Cue, text: string) => {
+      translated.set(cue.id, { ...cue, text, lang: this.pair.targetLanguage });
     };
     const publish = () => {
       onUpdate(new SubtitleTrack([...translated.values()]));
     };
 
     const stopped = () => signal.aborted;
-    const texts = [...new Set(sentences.map((sentence) => sentence.text))];
+    const texts = [...new Set(cues.map((cue) => cue.text))];
     const cached = await findCachedTranslations(this.pair, texts);
     if (stopped()) return;
     texts.forEach((text, index) => {
       const translation = cached[index];
       if (translation != null) this.known.set(text, translation);
     });
-    for (const sentence of sentences) {
-      const translation = this.known.get(sentence.text);
-      if (translation !== undefined) keep(sentence, translation);
+    for (const cue of cues) {
+      const translation = this.known.get(cue.text);
+      if (translation !== undefined) keep(cue, translation);
     }
     if (translated.size > 0) publish();
 
-    let remaining = sentences.filter((sentence) => !translated.has(sentence.id));
+    let remaining = cues.filter((cue) => !translated.has(cue.id));
     while (remaining.length > 0 && !stopped()) {
       const fresh: Translation[] = [];
-      for (const sentence of nextBatch(remaining, playheadMs())) {
+      for (const cue of nextBatch(remaining, playheadMs())) {
         if (stopped()) break;
-        let translation = this.known.get(sentence.text) ?? null;
+        let translation = this.known.get(cue.text) ?? null;
         if (translation === null) {
-          translation = await this.translateOrAbort(sentence.text, signal);
+          translation = await this.translateOrAbort(cue.text, signal);
           if (translation === null) break;
-          this.known.set(sentence.text, translation);
-          fresh.push({ text: sentence.text, translation });
+          this.known.set(cue.text, translation);
+          fresh.push({ text: cue.text, translation });
         }
-        keep(sentence, translation);
-      }
-      if (!stopped()) {
-        remaining = remaining.filter((sentence) => !translated.has(sentence.id));
+        keep(cue, translation);
         publish();
       }
+      remaining = remaining.filter((cue) => !translated.has(cue.id));
       await saveTranslations(this.pair, fresh);
     }
   }
@@ -87,7 +85,7 @@ export class CueTranslator {
 }
 
 function nextBatch(remaining: readonly Cue[], playheadMs: number): Cue[] {
-  const ahead = remaining.filter((sentence) => sentence.endMs > playheadMs);
-  const behind = remaining.filter((sentence) => sentence.endMs <= playheadMs).reverse();
+  const ahead = remaining.filter((cue) => cue.endMs > playheadMs);
+  const behind = remaining.filter((cue) => cue.endMs <= playheadMs).reverse();
   return [...ahead, ...behind].slice(0, BATCH_SIZE);
 }

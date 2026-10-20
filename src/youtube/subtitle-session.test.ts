@@ -376,7 +376,7 @@ describe('SubtitleSession', () => {
       expect(portugueseLine()?.classList.contains('translation-state')).toBe(false);
     });
 
-    it('shows no Portuguese alone in a pause between two cues of the same sentence', async () => {
+    it('shows no Portuguese alone in a pause between two cues', async () => {
       await translation.prepare(
         fakeTranslatorApi(),
         new EventTarget(),
@@ -395,7 +395,7 @@ describe('SubtitleSession', () => {
       playback.currentTime = 1.5;
       session?.render();
       await settle();
-      expect(portugueseLine()?.textContent).toBe('pt:So I wrote a thesis.');
+      expect(portugueseLine()?.textContent).toBe('pt:So I wrote');
 
       playback.currentTime = 2.5;
       session?.render();

@@ -59,14 +59,14 @@ describe('PortugueseTranslation', () => {
     vi.restoreAllMocks();
   });
 
-  it('translates the English track into sentences timed like the English', async () => {
+  it('translates each English cue on its own, timed like it, even inside a sentence', async () => {
     await translation.prepare(fakeApi('available'), page, new AbortController().signal);
     const english = trackOf('So I wrote', 'a thesis.', 'Bye.');
 
     expect(translation.cuesFor(english, 0)).toEqual([]);
     await settle();
-    expect(textsOf(translation.cuesFor(english, 500))).toEqual(['pt:So I wrote a thesis.']);
-    expect(textsOf(translation.cuesFor(english, 1500))).toEqual(['pt:So I wrote a thesis.']);
+    expect(textsOf(translation.cuesFor(english, 500))).toEqual(['pt:So I wrote']);
+    expect(textsOf(translation.cuesFor(english, 1500))).toEqual(['pt:a thesis.']);
     expect(textsOf(translation.cuesFor(english, 2500))).toEqual(['pt:Bye.']);
     expect(translation.state()).toBeNull();
     expect(changes).toBeGreaterThan(0);
