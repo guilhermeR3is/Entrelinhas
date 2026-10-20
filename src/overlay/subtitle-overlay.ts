@@ -1,5 +1,5 @@
 import type { StudyCommand, StudyKeys } from '../study/study-keys';
-import type { Cue } from '../subtitles/cue';
+import { type Cue, spokenLength } from '../subtitles/cue';
 import {
   DEFAULT_PLACEMENT,
   offsetFor,
@@ -79,6 +79,7 @@ export class SubtitleOverlay {
   private readonly announcer: HTMLElement;
   private shownEnglish = NO_CUES;
   private shownPortuguese = NO_CUES;
+  private shownSpoken = '';
   private translationState: TranslationState | null = null;
   private noticeTimer: ReturnType<typeof setTimeout> | undefined;
   private translationStateTimer: ReturnType<typeof setTimeout> | undefined;
@@ -145,12 +146,16 @@ export class SubtitleOverlay {
     this.place();
   }
 
-  showCues(english: readonly Cue[], portuguese: readonly Cue[] = NO_CUES): void {
-    if (english === this.shownEnglish && portuguese === this.shownPortuguese) return;
+  showCues(english: readonly Cue[], portuguese: readonly Cue[] = NO_CUES, timeMs = Infinity): void {
+    const spoken = english.map((cue) => spokenLength(cue, timeMs)).join();
+    const sameCues = english === this.shownEnglish && portuguese === this.shownPortuguese;
+    if (sameCues && spoken === this.shownSpoken) return;
+    this.shownSpoken = spoken;
+    this.renderEnglish(english, timeMs);
+    if (sameCues) return;
     this.shownEnglish = english;
     this.shownPortuguese = portuguese;
 
-    this.english.textContent = textOf(english);
     this.subtitle.hidden = english.length === 0 && portuguese.length === 0;
     this.renderPortuguese();
     this.renderBox();
@@ -375,6 +380,20 @@ export class SubtitleOverlay {
       this.portuguese.replaceChildren();
     }
     this.portuguese.hidden = portuguese.length === 0 && !state;
+  }
+
+  private renderEnglish(english: readonly Cue[], timeMs: number): void {
+    const lines = english.flatMap((cue, index) => {
+      const said = spokenLength(cue, timeMs);
+      const line: Node[] = [this.document.createTextNode(cue.text.slice(0, said))];
+      if (said < cue.text.length) {
+        line.push(
+          this.element('span', 'unspoken', this.document.createTextNode(cue.text.slice(said))),
+        );
+      }
+      return index === 0 ? line : [this.document.createTextNode('\n'), ...line];
+    });
+    this.english.replaceChildren(...lines);
   }
 
   private element(tag: string, className: string, ...children: Node[]): HTMLElement {

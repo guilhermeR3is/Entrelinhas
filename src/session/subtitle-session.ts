@@ -96,7 +96,7 @@ export class SubtitleSession {
     const portuguese = official
       ? official.activeAt(timeMs)
       : this.translatedCues(status, english, timeMs);
-    this.overlay.showCues(english, english.length > 0 ? portuguese : NO_CUES);
+    this.overlay.showCues(english, english.length > 0 ? portuguese : NO_CUES, timeMs);
     if (english.length > 0) this.followTranslationState(official ? null : this.translation.state());
     this.adapter.hideSiteCaptions(status === 'full-track' || status === 'screen');
     if (video && !video.paused) this.updateNotice(status, timeS);

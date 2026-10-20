@@ -172,6 +172,10 @@
   white-space: pre-line;
 }
 
+.unspoken {
+  visibility: hidden;
+}
+
 .portuguese {
   margin: 0.125em 0 0;
   font-size: 0.8em;

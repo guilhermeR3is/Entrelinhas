@@ -62,6 +62,37 @@ test('draws the caption on top of the video layer', async ({ page }) => {
   expect(topElement).toBe(OVERLAY);
 });
 
+test('shows each word of an automatic English track only when it is said', async ({ page }) => {
+  await open(page, 'video-words');
+  const said = () =>
+    page.evaluate((overlay) => {
+      const english = document.querySelector(overlay)?.shadowRoot?.querySelector('.english');
+      return Array.from(english?.childNodes ?? [])
+        .filter((node) => node.nodeName === '#text')
+        .map((node) => node.textContent)
+        .join('');
+    }, OVERLAY);
+  const playUntil = (seconds: number) =>
+    page.evaluate(async (time) => {
+      const video = document.querySelector('video');
+      if (!video) return;
+      await video.play();
+      while (video.currentTime < time) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+      video.pause();
+    }, seconds);
+
+  await playUntil(1);
+  await expect.poll(said).toBe("Then that's fine.");
+  await expect(page.locator(`${OVERLAY} .unspoken`)).toHaveText(' I abstain.');
+  await expect(page.locator(`${OVERLAY} .unspoken`)).toHaveCSS('visibility', 'hidden');
+
+  await playUntil(4.5);
+  await expect.poll(said).toBe("Then that's fine. I abstain.");
+  await expect(page.locator(`${OVERLAY} .unspoken`)).toHaveCount(0);
+});
+
 test('follows the video while it plays', async ({ page }) => {
   await open(page, 'video-a');
   await play(page);

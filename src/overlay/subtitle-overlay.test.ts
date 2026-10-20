@@ -79,6 +79,49 @@ describe('SubtitleOverlay', () => {
     expect(find('.english').textContent).toBe('changed outside');
   });
 
+  describe('with the time of each word', () => {
+    const spoken: Cue = {
+      ...cue('Then that is fine.'),
+      words: [
+        { startMs: 0, textEnd: 4 },
+        { startMs: 200, textEnd: 9 },
+        { startMs: 400, textEnd: 18 },
+      ],
+    };
+
+    function said(): string {
+      return Array.from(find('.english').childNodes)
+        .filter((node) => node.nodeName === '#text')
+        .map((node) => node.textContent)
+        .join('');
+    }
+
+    it('shows only the words already said and keeps room for the others', () => {
+      overlay.showCues([spoken], [], 250);
+      expect(said()).toBe('Then that');
+      expect(find('.english .unspoken').textContent).toBe(' is fine.');
+      expect(find('.english').textContent).toBe('Then that is fine.');
+    });
+
+    it('adds each word as the time passes and drops the reserved room at the end', () => {
+      const cues = [spoken];
+      overlay.showCues(cues, [], 0);
+      expect(said()).toBe('Then');
+      overlay.showCues(cues, [], 450);
+      expect(said()).toBe('Then that is fine.');
+      expect(container.querySelector('.unspoken')).toBeNull();
+    });
+
+    it('does not touch the page while no new word is said', () => {
+      const cues = [spoken];
+      const portuguese = [cue('Então tá bom.', 'pt')];
+      overlay.showCues(cues, portuguese, 250);
+      find('.english').textContent = 'changed outside';
+      overlay.showCues(cues, portuguese, 300);
+      expect(find('.english').textContent).toBe('changed outside');
+    });
+  });
+
   it.each([
     ['captions-off', 'desligada', 'Ligue a legenda (CC) em inglês.'],
     ['other-language', 'outro idioma', 'Escolha inglês na legenda (CC).'],

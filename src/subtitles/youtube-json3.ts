@@ -1,5 +1,5 @@
 import * as z from 'zod/mini';
-import { type Cue, SubtitleFormatError } from './cue';
+import { type Cue, type CueWord, SubtitleFormatError } from './cue';
 
 const Json3Track = z.object({
   events: z.array(
@@ -7,7 +7,9 @@ const Json3Track = z.object({
       tStartMs: z.number(),
       dDurationMs: z.optional(z.number()),
       aAppend: z.optional(z.number()),
-      segs: z.optional(z.array(z.object({ utf8: z.optional(z.string()) }))),
+      segs: z.optional(
+        z.array(z.object({ utf8: z.optional(z.string()), tOffsetMs: z.optional(z.number()) })),
+      ),
     }),
   ),
 });
@@ -40,14 +42,29 @@ function readTrack(source: string): z.infer<typeof Json3Track> {
 
 function toTimedText(event: Json3Event): TimedText[] {
   const { tStartMs: startMs, dDurationMs: durationMs = 0, segs = [] } = event;
-  const text = segs
-    .map((seg) => seg.utf8 ?? '')
-    .join('')
+  const text = cleanText(segs.map((seg) => seg.utf8 ?? '').join(''));
+  if (text === '' || durationMs <= 0) return [];
+
+  const line = { startMs, endMs: startMs + durationMs, text };
+  if (!segs.some((seg) => seg.tOffsetMs !== undefined)) return [line];
+  let said = '';
+  const words: CueWord[] = [];
+  for (const seg of segs) {
+    said += seg.utf8 ?? '';
+    const textEnd = cleanText(said).length;
+    if (textEnd > (words.at(-1)?.textEnd ?? 0)) {
+      words.push({ startMs: startMs + (seg.tOffsetMs ?? 0), textEnd });
+    }
+  }
+  return [{ ...line, words }];
+}
+
+function cleanText(text: string): string {
+  return text
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line !== '')
     .join('\n');
-  return text === '' || durationMs <= 0 ? [] : [{ startMs, endMs: startMs + durationMs, text }];
 }
 
 function uniqueLines(lines: TimedText[]): TimedText[] {

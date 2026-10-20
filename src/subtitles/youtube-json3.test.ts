@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { SubtitleFormatError } from './cue';
+import { SubtitleFormatError, spokenLength } from './cue';
 import { SubtitleTrack } from './subtitle-track';
 import { parseYouTubeJson3 } from './youtube-json3';
 
@@ -40,6 +40,16 @@ describe('parseYouTubeJson3 with an automatic track', () => {
     }
   });
 
+  it('says each word at its own time', () => {
+    const [first] = cues;
+    if (!first) throw new Error('Missing cue');
+    const saidAt = (ms: number) => first.text.slice(0, spokenLength(first, ms));
+    expect(saidAt(160)).toBe('so');
+    expect(saidAt(759)).toBe('so today');
+    expect(saidAt(760)).toBe('so today we');
+    expect(saidAt(Infinity)).toBe(first.text);
+  });
+
   it('numbers the cues in order and tags them with the language', () => {
     expect(cues.map((cue) => cue.id)).toEqual([0, 1, 2, 3]);
     expect(cues.every((cue) => cue.lang === 'en')).toBe(true);
@@ -50,9 +60,22 @@ describe('parseYouTubeJson3 with a styled track', () => {
   const cues = parseYouTubeJson3(readFixture('styled.json'), 'en');
 
   it('keeps one cue when the same line is drawn twice with different pens', () => {
-    expect(cues).toEqual([
+    expect(
+      cues.map(({ id, startMs, endMs, text, lang }) => ({ id, startMs, endMs, text, lang })),
+    ).toEqual([
       { id: 0, startMs: 0, endMs: 3000, text: 'If you want\nto LEARN something,', lang: 'en' },
       { id: 1, startMs: 3080, endMs: 5200, text: 'start today.', lang: 'en' },
+    ]);
+  });
+
+  it('keeps when each word is said, skipping the pieces without text', () => {
+    expect(cues[0]?.words).toEqual([
+      { startMs: 0, textEnd: 2 },
+      { startMs: 200, textEnd: 6 },
+      { startMs: 420, textEnd: 11 },
+      { startMs: 902, textEnd: 14 },
+      { startMs: 1200, textEnd: 20 },
+      { startMs: 1500, textEnd: 31 },
     ]);
   });
 });

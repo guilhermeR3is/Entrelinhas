@@ -15,7 +15,23 @@ const PORTUGUESE_CAPTIONS: Record<string, [number, number, string][]> = {
   'video-a': [[0, 600_000, 'Legenda oficial do vídeo A']],
 };
 
+const WORD_TIMED_EVENTS = [
+  {
+    tStartMs: 0,
+    dDurationMs: 10_000,
+    segs: [
+      { utf8: 'Then' },
+      { utf8: " that's", tOffsetMs: 200 },
+      { utf8: ' fine.', tOffsetMs: 400 },
+      { utf8: ' I', tOffsetMs: 4000 },
+      { utf8: ' abstain.', tOffsetMs: 4300 },
+    ],
+  },
+];
+
 function json3Track(videoId: string, lang: string | null): string {
+  if (videoId === 'video-words')
+    return JSON.stringify({ wireMagic: 'pb3', events: WORD_TIMED_EVENTS });
   const captions = lang?.startsWith('pt') ? PORTUGUESE_CAPTIONS : CAPTIONS;
   const events = (captions[videoId] ?? []).map(([start, end, text]) => ({
     tStartMs: start,
