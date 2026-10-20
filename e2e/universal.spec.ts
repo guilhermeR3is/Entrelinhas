@@ -433,7 +433,7 @@ test.describe('a player inside a frame', () => {
   });
 
   test('stays out of a frame when the page around it was not turned on', async ({ page }) => {
-    await page.goto('http://127.0.0.1:4321/framed-player.html');
+    await page.goto('http://outro-site.localhost:4321/framed-player.html');
     const frame = await playerFrame(page);
     await seekIn(frame, 0.75);
     await page.waitForTimeout(1500);
