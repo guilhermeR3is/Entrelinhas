@@ -4,7 +4,7 @@ import {
   type TranslationState,
 } from '../overlay/subtitle-overlay';
 import { StudyControls } from '../study/study-controls';
-import type { StudyCommand } from '../study/study-keys';
+import type { StudyCommand, StudyKeys } from '../study/study-keys';
 import type { StudyPreferenceStore } from '../study/study-preferences';
 import type { Cue } from '../subtitles/cue';
 import type { PortugueseTranslation } from '../translation/portuguese-translation';
@@ -58,6 +58,7 @@ export class SubtitleSession {
         preferences.remember({ placement });
       },
     );
+    this.overlay.setKeys(preferences.current.keys);
     this.controlsObserver = watchPlayerControls(player, (liftPx) => {
       this.overlay.setControlsLift(liftPx);
     });
@@ -114,6 +115,10 @@ export class SubtitleSession {
     }
     if (video && !video.paused) this.updateNotice(status, timeS);
   };
+
+  setKeys(keys: StudyKeys): void {
+    this.overlay.setKeys(keys);
+  }
 
   handleCommand(command: StudyCommand): boolean {
     if (!this.controls || this.player.classList.contains(AD_CLASS)) return false;

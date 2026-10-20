@@ -1,5 +1,5 @@
 import { MAX_SPEED, MIN_SPEED } from '../study/playback-speed';
-import type { StudyCommand } from '../study/study-keys';
+import { DEFAULT_KEYS, keyLabel, type StudyCommand, type StudyKeys } from '../study/study-keys';
 
 const SPEED_FORMAT = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
 
@@ -16,6 +16,7 @@ export class StudyStrip {
   private readonly repeat: HTMLButtonElement;
   private readonly blur: HTMLButtonElement;
   private readonly speedValue: HTMLOutputElement;
+  private readonly buttonsByCommand = new Map<StudyCommand, HTMLButtonElement>();
 
   constructor(
     private readonly document: Document,
@@ -31,22 +32,12 @@ export class StudyStrip {
     moveHint.id = 'move-hint';
     moveHint.className = 'visually-hidden';
     moveHint.textContent = 'Arraste ou use as setas. Enter leva a legenda para cima ou para baixo.';
-    this.slower = this.button('−', 'Z', 'Mais devagar', () => {
-      onCommand('slower');
-    });
-    this.faster = this.button('+', 'X', 'Mais rápido', () => {
-      onCommand('faster');
-    });
-    this.autoPause = this.button('Pausar no fim', 'P', null, () => {
-      onCommand('auto-pause');
-    });
+    this.slower = this.button('−', 'slower', 'Mais devagar', onCommand);
+    this.faster = this.button('+', 'faster', 'Mais rápido', onCommand);
+    this.autoPause = this.button('Pausar no fim', 'auto-pause', null, onCommand);
     this.autoPause.classList.add('separated');
-    this.repeat = this.button('Repetir', 'R', null, () => {
-      onCommand('repeat');
-    });
-    this.blur = this.button('Borrar português', 'B', null, () => {
-      onCommand('blur');
-    });
+    this.repeat = this.button('Repetir', 'repeat', null, onCommand);
+    this.blur = this.button('Borrar português', 'blur', null, onCommand);
     this.speedValue = document.createElement('output');
     this.speedValue.className = 'speed';
     this.speedValue.setAttribute('aria-label', 'Velocidade');
@@ -69,6 +60,16 @@ export class StudyStrip {
       event.preventDefault();
     });
     this.setSpeed(1);
+    this.setKeys(DEFAULT_KEYS);
+  }
+
+  setKeys(keys: StudyKeys): void {
+    for (const [command, button] of this.buttonsByCommand) {
+      const label = keyLabel(keys[command]);
+      button.setAttribute('aria-keyshortcuts', label);
+      const hint = button.querySelector('kbd');
+      if (hint) hint.textContent = label;
+    }
   }
 
   setSpeed(speed: number): void {
@@ -91,21 +92,20 @@ export class StudyStrip {
 
   private button(
     text: string,
-    key: string,
+    command: StudyCommand,
     label: string | null,
-    onPress: () => void,
+    onCommand: (command: StudyCommand) => void,
   ): HTMLButtonElement {
     const button = this.document.createElement('button');
     button.type = 'button';
     if (label) button.setAttribute('aria-label', label);
-    button.setAttribute('aria-keyshortcuts', key);
     const hint = this.document.createElement('kbd');
-    hint.textContent = key;
     hint.setAttribute('aria-hidden', 'true');
     button.append(text, hint);
     button.addEventListener('click', () => {
-      if (button.getAttribute('aria-disabled') !== 'true') onPress();
+      if (button.getAttribute('aria-disabled') !== 'true') onCommand(command);
     });
+    this.buttonsByCommand.set(command, button);
     return button;
   }
 }

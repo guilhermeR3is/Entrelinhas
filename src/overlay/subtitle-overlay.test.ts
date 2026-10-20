@@ -1,5 +1,6 @@
 import { JSDOM } from 'jsdom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_KEYS } from '../study/study-keys';
 import type { Cue } from '../subtitles/cue';
 import { SubtitleOverlay } from './subtitle-overlay';
 
@@ -310,6 +311,21 @@ describe('SubtitleOverlay', () => {
       slower?.click();
       faster?.click();
       expect(onCommand.mock.calls).toEqual([['slower'], ['faster']]);
+    });
+
+    it('shows the keys chosen in the options next to each button', () => {
+      overlay.setKeys({
+        ...DEFAULT_KEYS,
+        slower: { key: 'q', shift: false },
+        blur: { key: 'g', shift: true },
+      });
+      const [slower, , , , blur] = Array.from(
+        container.querySelectorAll<HTMLButtonElement>('.strip button:not(.handle)'),
+      );
+      expect(slower?.textContent).toBe('−Q');
+      expect(slower?.getAttribute('aria-keyshortcuts')).toBe('Q');
+      expect(blur?.textContent).toBe('Borrar portuguêsShift+G');
+      expect(blur?.getAttribute('aria-keyshortcuts')).toBe('Shift+G');
     });
 
     it('ignores a press on a button at the end of the range', () => {

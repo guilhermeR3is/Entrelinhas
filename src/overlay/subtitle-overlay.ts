@@ -1,4 +1,4 @@
-import type { StudyCommand } from '../study/study-keys';
+import type { StudyCommand, StudyKeys } from '../study/study-keys';
 import type { Cue } from '../subtitles/cue';
 import {
   DEFAULT_PLACEMENT,
@@ -159,6 +159,10 @@ export class SubtitleOverlay {
 
   setSpeed(speed: number): void {
     this.strip.setSpeed(speed);
+  }
+
+  setKeys(keys: StudyKeys): void {
+    this.strip.setKeys(keys);
   }
 
   setAutoPause(enabled: boolean): void {

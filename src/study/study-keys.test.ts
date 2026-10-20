@@ -1,6 +1,12 @@
 import { JSDOM } from 'jsdom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { listenForStudyKeys, type StudyCommand } from './study-keys';
+import {
+  DEFAULT_KEYS,
+  keyLabel,
+  listenForStudyKeys,
+  type StudyCommand,
+  type StudyKeys,
+} from './study-keys';
 
 describe('listenForStudyKeys', () => {
   let window: JSDOM['window'];
@@ -8,6 +14,7 @@ describe('listenForStudyKeys', () => {
   let commands: StudyCommand[];
   let handled: boolean;
   let pageKeys: string[];
+  let keys: StudyKeys;
 
   beforeEach(() => {
     const dom = new JSDOM(
@@ -19,6 +26,7 @@ describe('listenForStudyKeys', () => {
     commands = [];
     handled = true;
     pageKeys = [];
+    keys = DEFAULT_KEYS;
     listenForStudyKeys(
       window as unknown as Window,
       (command) => {
@@ -26,6 +34,7 @@ describe('listenForStudyKeys', () => {
         return handled;
       },
       listeners.signal,
+      () => keys,
     );
     window.document.addEventListener('keydown', (event) => pageKeys.push(event.key));
   });
@@ -121,5 +130,19 @@ describe('listenForStudyKeys', () => {
     listeners.abort();
     press('#player', 'z');
     expect(commands).toEqual([]);
+  });
+  it('follows the keys chosen in the options while the page is open', () => {
+    keys = { ...DEFAULT_KEYS, slower: { key: 'q', shift: false }, blur: { key: 'g', shift: true } };
+    press('#player', 'q');
+    press('#player', 'z');
+    press('#player', 'G', { shiftKey: true });
+    press('#player', 'g');
+    expect(commands).toEqual(['slower', 'blur']);
+    expect(pageKeys).toEqual(['z', 'g']);
+  });
+
+  it('names a key the way the strip and the options show it', () => {
+    expect(keyLabel({ key: 'z', shift: false })).toBe('Z');
+    expect(keyLabel({ key: 'r', shift: true })).toBe('Shift+R');
   });
 });

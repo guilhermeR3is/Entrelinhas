@@ -4,7 +4,7 @@ import { browser } from 'wxt/browser';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import '../overlay/subtitle-overlay.css';
 import { loadSubtitleFont } from '../overlay/subtitle-font';
-import { listenForStudyKeys } from '../study/study-keys';
+import { DEFAULT_KEYS, listenForStudyKeys } from '../study/study-keys';
 import { StudyPreferenceStore } from '../study/study-preferences';
 import { PortugueseTranslation } from '../translation/portuguese-translation';
 import { findTranslatorApi } from '../translation/translator-api';
@@ -21,17 +21,28 @@ export default defineContentScript({
     const adapter = new YouTubeAdapter(window);
     let session: SubtitleSession | undefined;
     let fontLoaded = false;
+    let keys = DEFAULT_KEYS;
     const translation = new PortugueseTranslation(() => session?.render());
     const translatorApi =
       import.meta.env.MODE === 'e2e' ? fakeTranslatorApi(window) : findTranslatorApi(globalThis);
     void translation.prepare(translatorApi, window, ctx.signal);
-    listenForStudyKeys(window, (command) => session?.handleCommand(command) ?? false, ctx.signal);
+    listenForStudyKeys(
+      window,
+      (command) => session?.handleCommand(command) ?? false,
+      ctx.signal,
+      () => keys,
+    );
     ctx.addEventListener(window, 'message', (event) => {
       adapter.receive(event);
       session?.render();
     });
 
     const preferences = await StudyPreferenceStore.load(browser.storage.local);
+    keys = preferences.current.keys;
+    preferences.followKeys((chosen) => {
+      keys = chosen;
+      session?.setKeys(chosen);
+    }, ctx.signal);
     const ui = await createShadowRootUi(ctx, {
       name: 'projeto-bilingue-legenda',
       position: 'inline',

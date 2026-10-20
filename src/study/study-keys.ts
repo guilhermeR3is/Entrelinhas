@@ -1,9 +1,24 @@
 export type StudyCommand =
   'slower' | 'faster' | 'auto-pause' | 'repeat' | 'repeat-slow' | 'blur' | 'reveal';
 
-type KeyBinding = { key: string; shift: boolean };
+export interface KeyBinding {
+  key: string;
+  shift: boolean;
+}
 
-const STUDY_KEYS: Record<StudyCommand, KeyBinding> = {
+export type StudyKeys = Record<StudyCommand, KeyBinding>;
+
+export const STUDY_COMMANDS: readonly StudyCommand[] = [
+  'slower',
+  'faster',
+  'auto-pause',
+  'repeat',
+  'repeat-slow',
+  'blur',
+  'reveal',
+];
+
+export const DEFAULT_KEYS: StudyKeys = {
   slower: { key: 'z', shift: false },
   faster: { key: 'x', shift: false },
   'auto-pause': { key: 'p', shift: false },
@@ -12,19 +27,24 @@ const STUDY_KEYS: Record<StudyCommand, KeyBinding> = {
   blur: { key: 'b', shift: false },
   reveal: { key: 'v', shift: false },
 };
-const COMMANDS = Object.keys(STUDY_KEYS) as StudyCommand[];
 const EDITABLE = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
+
+export function keyLabel(binding: KeyBinding): string {
+  const key = binding.key.toUpperCase();
+  return binding.shift ? `Shift+${key}` : key;
+}
 
 export function listenForStudyKeys(
   page: Window,
   onCommand: (command: StudyCommand) => boolean,
   signal: AbortSignal,
+  keys: () => StudyKeys = () => DEFAULT_KEYS,
 ): void {
   page.addEventListener(
     'keydown',
     (event) => {
       if (event.ctrlKey || event.metaKey || event.altKey || isTyping(event)) return;
-      const command = commandFor(event);
+      const command = commandFor(event, keys());
       if (!command || !onCommand(command)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -33,10 +53,10 @@ export function listenForStudyKeys(
   );
 }
 
-function commandFor(event: KeyboardEvent): StudyCommand | undefined {
+function commandFor(event: KeyboardEvent, keys: StudyKeys): StudyCommand | undefined {
   const key = event.key.toLowerCase();
-  return COMMANDS.find(
-    (command) => STUDY_KEYS[command].key === key && STUDY_KEYS[command].shift === event.shiftKey,
+  return STUDY_COMMANDS.find(
+    (command) => keys[command].key === key && keys[command].shift === event.shiftKey,
   );
 }
 

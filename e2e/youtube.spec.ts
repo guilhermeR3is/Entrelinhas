@@ -414,3 +414,31 @@ test('remembers the speed, the switches and the place of the box on the next vis
   await expect.poll(async () => (await boxInPlayer(page)).top).toBeCloseTo(moved.top, 0);
   expect((await boxInPlayer(page)).centerX).toBeCloseTo(moved.centerX, 2);
 });
+
+test('follows keys changed in the options while the video page stays open', async ({
+  page,
+  context,
+  popupUrl,
+}) => {
+  await open(page, 'video-a');
+  const extensionPage = await context.newPage();
+  await extensionPage.goto(popupUrl);
+  await extensionPage.evaluate(() =>
+    (
+      globalThis as unknown as {
+        chrome: { storage: { local: { set(items: object): Promise<void> } } };
+      }
+    ).chrome.storage.local.set({ keys: { slower: { key: 'q', shift: false } } }),
+  );
+  await extensionPage.close();
+
+  await expect(page.getByRole('button', { name: 'Mais devagar' })).toHaveAttribute(
+    'aria-keyshortcuts',
+    'Q',
+  );
+  await page.keyboard.press('q');
+  await expect.poll(() => speed(page)).toBe(0.95);
+  await page.keyboard.press('z');
+  expect(await keysSeenByPage(page)).toEqual(['z']);
+  expect(await speed(page)).toBe(0.95);
+});
