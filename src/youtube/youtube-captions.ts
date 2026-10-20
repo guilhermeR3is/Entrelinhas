@@ -14,7 +14,7 @@ type ScreenLine = { videoId: string; cues: readonly Cue[] };
 const NO_CUES: readonly Cue[] = Object.freeze([]);
 const UNKNOWN_LANGUAGE = 'und';
 
-export class YouTubeAdapter {
+export class YouTubeCaptions {
   private english: CapturedTrack | null = null;
   private portuguese: CapturedTrack | null = null;
   private latest: CapturedLanguage | null = null;

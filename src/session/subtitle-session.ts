@@ -9,14 +9,9 @@ import type { StudyPreferenceStore } from '../study/study-preferences';
 import type { CaptionStatus } from '../subtitles/caption-status';
 import type { Cue } from '../subtitles/cue';
 import type { PortugueseTranslation } from '../translation/portuguese-translation';
-import { observeScreenCaptions } from './caption-observer';
-import { watchPlayerControls } from './player-controls';
-import { watchSpeedIntent } from './speed-intent';
-import type { YouTubeAdapter } from './youtube-adapter';
+import type { PlayerAdapter } from './player-adapter';
 
 const NOTICE_DELAY_S = 2;
-const AD_CLASS = 'ad-showing';
-const NATIVE_CAPTIONS_SELECTOR = '#ytp-caption-window-container';
 const NO_CUES: readonly Cue[] = Object.freeze([]);
 const STUDY_STATUSES = new Set<CaptionStatus>(['full-track', 'screen']);
 const NOTICES: Partial<Record<CaptionStatus, OverlayNotice>> = {
@@ -30,13 +25,9 @@ type PendingNotice = { key: string; notice: OverlayNotice; sinceS: number };
 export class SubtitleSession {
   private readonly overlay: SubtitleOverlay;
   private readonly listeners = new AbortController();
-  private readonly controlsObserver: MutationObserver;
-  private readonly personChangedSpeed: () => boolean;
   private controls: StudyControls | undefined;
   private controlsVideo: HTMLVideoElement | null = null;
   private shownEnglish: readonly Cue[] = NO_CUES;
-  private nativeCaptions: HTMLElement | null = null;
-  private screenObserver: MutationObserver | undefined;
   private frame = 0;
   private pendingNotice: PendingNotice | null = null;
   private shownNoticeKey: string | null = null;
@@ -44,8 +35,7 @@ export class SubtitleSession {
 
   constructor(
     container: Element,
-    private readonly player: Element,
-    private readonly adapter: YouTubeAdapter,
+    private readonly adapter: PlayerAdapter,
     private readonly translation: PortugueseTranslation,
     private readonly preferences: StudyPreferenceStore,
   ) {
@@ -60,33 +50,32 @@ export class SubtitleSession {
       },
     );
     this.overlay.setKeys(preferences.current.keys);
-    this.controlsObserver = watchPlayerControls(player, (liftPx) => {
-      this.overlay.setControlsLift(liftPx);
+    adapter.start({
+      onCaptionsChange: this.render,
+      onControlsLift: (liftPx) => {
+        this.overlay.setControlsLift(liftPx);
+      },
     });
 
-    const page = player.ownerDocument.defaultView;
-    this.personChangedSpeed = page ? watchSpeedIntent(page, this.listeners.signal) : () => false;
-
     const options = { capture: true, signal: this.listeners.signal };
-    player.addEventListener('playing', this.play, options);
+    adapter.player.addEventListener('playing', this.play, options);
     for (const type of ['pause', 'seeked', 'emptied']) {
-      player.addEventListener(type, this.render, options);
+      adapter.player.addEventListener(type, this.render, options);
     }
     this.play();
   }
 
   readonly render = (): void => {
-    const video = this.player.querySelector('video');
+    const video = this.adapter.video();
     const timeS = video?.currentTime ?? 0;
-    const nativeCaptions = this.followNativeCaptions();
-    const isAd = this.player.classList.contains(AD_CLASS);
+    const isAd = this.adapter.isShowingAd();
     const controls = this.followControls(video);
     controls?.setHeld(isAd);
     if (isAd) {
       this.overlay.setStudyState(false, false);
       this.overlay.showCues(NO_CUES);
       this.overlay.hideNotice();
-      nativeCaptions?.style.removeProperty('visibility');
+      this.adapter.hideSiteCaptions(false);
       this.pendingNotice = null;
       return;
     }
@@ -109,11 +98,7 @@ export class SubtitleSession {
       : this.translatedCues(status, english, timeMs);
     this.overlay.showCues(english, english.length > 0 ? portuguese : NO_CUES);
     if (english.length > 0) this.followTranslationState(official ? null : this.translation.state());
-    if (status === 'full-track' || status === 'screen') {
-      nativeCaptions?.style.setProperty('visibility', 'hidden');
-    } else {
-      nativeCaptions?.style.removeProperty('visibility');
-    }
+    this.adapter.hideSiteCaptions(status === 'full-track' || status === 'screen');
     if (video && !video.paused) this.updateNotice(status, timeS);
   };
 
@@ -122,7 +107,7 @@ export class SubtitleSession {
   }
 
   handleCommand(command: StudyCommand): boolean {
-    if (!this.controls || this.player.classList.contains(AD_CLASS)) return false;
+    if (!this.controls || this.adapter.isShowingAd()) return false;
     this.controls.handle(command);
     return true;
   }
@@ -131,9 +116,7 @@ export class SubtitleSession {
     this.listeners.abort();
     this.controls?.stop();
     cancelAnimationFrame(this.frame);
-    this.screenObserver?.disconnect();
-    this.controlsObserver.disconnect();
-    this.nativeCaptions?.style.removeProperty('visibility');
+    this.adapter.stop();
     this.overlay.hideNotice();
   }
 
@@ -162,7 +145,7 @@ export class SubtitleSession {
       ? new StudyControls(
           video,
           this.overlay,
-          this.personChangedSpeed,
+          () => this.adapter.personChangedSpeed(),
           this.preferences.current,
           (change) => {
             this.preferences.remember(change);
@@ -172,27 +155,11 @@ export class SubtitleSession {
     return this.controls;
   }
 
-  private followNativeCaptions(): HTMLElement | null {
-    const captions = this.player.querySelector<HTMLElement>(NATIVE_CAPTIONS_SELECTOR);
-    if (captions === this.nativeCaptions) return captions;
-
-    this.screenObserver?.disconnect();
-    this.nativeCaptions?.style.removeProperty('visibility');
-    this.nativeCaptions = captions;
-    this.screenObserver = captions
-      ? observeScreenCaptions(captions, (text) => {
-          this.adapter.showScreenText(text);
-          this.render();
-        })
-      : undefined;
-    return captions;
-  }
-
   private readonly play = (): void => {
     cancelAnimationFrame(this.frame);
     const tick = () => {
       this.render();
-      const video = this.player.querySelector('video');
+      const video = this.adapter.video();
       if (video && !video.paused && !this.listeners.signal.aborted) {
         this.frame = requestAnimationFrame(tick);
       }
@@ -201,14 +168,14 @@ export class SubtitleSession {
   };
 
   private updateNotice(status: CaptionStatus, timeS: number): void {
-    const videoId = this.adapter.currentVideoId();
+    const videoKey = this.adapter.videoKey();
     const notice = NOTICES[status];
-    if (!videoId || !notice) {
+    if (!videoKey || !notice) {
       this.pendingNotice = null;
       return;
     }
 
-    const key = `${videoId}:${status}`;
+    const key = `${videoKey}:${status}`;
     if (this.pendingNotice?.key !== key) this.pendingNotice = { key, notice, sinceS: timeS };
     const waitedS = Math.abs(timeS - this.pendingNotice.sinceS);
     if (waitedS >= NOTICE_DELAY_S && this.shownNoticeKey !== key) {

@@ -6,8 +6,9 @@ import { StudyPreferenceStore } from '../study/study-preferences';
 import { PortugueseTranslation } from '../translation/portuguese-translation';
 import { serveTranslationCache } from '../translation/translation-service';
 import type { TranslatorApi, TranslatorAvailability } from '../translation/translator-api';
-import { SubtitleSession } from './subtitle-session';
-import { YouTubeAdapter } from './youtube-adapter';
+import { SubtitleSession } from '../session/subtitle-session';
+import { YouTubeCaptions } from './youtube-captions';
+import { YouTubePlayerAdapter } from './youtube-player-adapter';
 
 const TRACK_BODY = JSON.stringify({
   events: [{ tStartMs: 1000, dDurationMs: 2000, segs: [{ utf8: 'Hello there' }] }],
@@ -41,10 +42,10 @@ const PLAYER_HTML = `
   </div>
   <div id="overlay"></div>`;
 
-describe('SubtitleSession', () => {
+describe('SubtitleSession on the YouTube player', () => {
   let document: Document;
   let page: { location: Location };
-  let adapter: YouTubeAdapter;
+  let captions: YouTubeCaptions;
   let video: HTMLVideoElement;
   let frames: FrameRequestCallback[];
   let session: SubtitleSession | undefined;
@@ -80,7 +81,7 @@ describe('SubtitleSession', () => {
     Object.defineProperty(video, 'paused', { get: () => playback.paused });
 
     page = { location: { href: 'https://www.youtube.com/watch?v=video-a' } as Location };
-    adapter = new YouTubeAdapter(page);
+    captions = new YouTubeCaptions(page);
     translation = new PortugueseTranslation(() => session?.render());
     fakeBrowser.reset();
     vi.stubGlobal('indexedDB', new IDBFactory());
@@ -112,8 +113,7 @@ describe('SubtitleSession', () => {
   function start(): SubtitleSession {
     session = new SubtitleSession(
       find('#overlay'),
-      find('#movie_player'),
-      adapter,
+      new YouTubePlayerAdapter(find('#movie_player'), captions),
       translation,
       preferences,
     );
@@ -121,7 +121,7 @@ describe('SubtitleSession', () => {
   }
 
   function receiveTrack(lang = 'en', body = TRACK_BODY): void {
-    adapter.receive({
+    captions.receive({
       source: page as unknown as MessageEventSource,
       data: {
         source: 'projeto-bilingue:caption-track',
