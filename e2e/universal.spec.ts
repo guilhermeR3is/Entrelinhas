@@ -312,6 +312,53 @@ test.describe('loading a subtitle file', () => {
     expect(seen.filter((text) => text !== '[pt] This line comes from a file.')).toEqual([]);
   });
 
+  test('fits a very long line inside a small player while the video plays', async ({
+    page,
+    context,
+  }) => {
+    await page.addInitScript(() => {
+      const errors: string[] = [];
+      Object.assign(window, { pageErrors: errors });
+      window.addEventListener('error', (event) => errors.push(event.message));
+    });
+    await openLoader(page, context, '/plain-video.html?fake-translator=available');
+    await page.addStyleTag({ content: 'video { width: 400px; height: 225px; }' });
+    const long =
+      'Listen, I know you think this is all my fault, and maybe some of it is, but you have to understand that I never meant for any of this to happen, not the fire, not the money, none of it.';
+    await chooseFile(page, {
+      name: 'long.srt',
+      mimeType: 'application/x-subrip',
+      buffer: Buffer.from(`1\n00:00:00,500 --> 00:00:11,000\n${long}\n`),
+    });
+    await expect(page.locator(STRIP)).toContainText('Lendo long.srt.');
+    await page.mouse.move(0, 0);
+    await page.evaluate(async () => {
+      const video = document.querySelector('video');
+      if (!video) throw new Error('No video');
+      video.currentTime = 1;
+      await video.play();
+    });
+    await expect(page.locator(ENGLISH)).toHaveText(long);
+    await expect(page.locator(PORTUGUESE)).toHaveText(`[pt] ${long}`);
+
+    await expect
+      .poll(async () => {
+        const video = await page.locator('video').boundingBox();
+        const box = await page.locator(`${OVERLAY} .box`).boundingBox();
+        if (!video || !box) return 'missing';
+        return box.y >= video.y && box.y + box.height <= video.y + video.height + 0.5;
+      })
+      .toBe(true);
+    const fontPx = await page
+      .locator(ENGLISH)
+      .evaluate((english) => Number.parseFloat(getComputedStyle(english).fontSize));
+    expect(fontPx).toBeGreaterThanOrEqual(16);
+    expect(fontPx).toBeLessThan(20);
+    expect(
+      await page.evaluate(() => (window as unknown as { pageErrors: string[] }).pageErrors),
+    ).toEqual([]);
+  });
+
   test('takes a file dropped on the video and outlines the video while it is dragged', async ({
     page,
     context,
@@ -439,7 +486,21 @@ test.describe('a player inside a frame', () => {
     await seekIn(frame, 0.75);
 
     await expect(frame.locator(ENGLISH)).toHaveText('Hello, this is the test page.');
-    expect(await trackModes(frame)).toEqual(['hidden', 'hidden']);
+    expect(await trackModes(frame)).toEqual(['hidden']);
+  });
+
+  test('translates inside a player of another address through the page around it', async ({
+    page,
+  }) => {
+    await page.goto('/foreign-player.html?fake-translator=available');
+    const frame = await playerFrame(page);
+    await seekIn(frame, 0.75);
+
+    await expect(frame.locator(PORTUGUESE)).toHaveText('[pt] Hello, this is the test page.');
+    await expect(page.locator('html')).toHaveAttribute('data-fake-translations', /^[1-9]/);
+    expect(await frame.evaluate(() => document.documentElement.dataset.fakeTranslations)).toBe(
+      undefined,
+    );
   });
 
   test('stays out of a frame when the page around it was not turned on', async ({ page }) => {

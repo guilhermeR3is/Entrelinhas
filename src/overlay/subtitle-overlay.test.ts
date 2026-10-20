@@ -11,14 +11,16 @@ function cue(text: string, lang = 'en'): Cue {
 describe('SubtitleOverlay', () => {
   let container: HTMLElement;
   let overlay: SubtitleOverlay;
-  let resize: () => void;
+  let resize: (entries?: { target: Element }[]) => void;
 
   beforeEach(() => {
     vi.stubGlobal(
       'ResizeObserver',
       class {
-        constructor(callback: () => void) {
-          resize = callback;
+        constructor(callback: (entries: { target: Element }[]) => void) {
+          resize = (entries = []) => {
+            callback(entries);
+          };
         }
         observe = vi.fn();
       },
@@ -448,6 +450,66 @@ describe('SubtitleOverlay', () => {
         new view.KeyboardEvent('keydown', { key: ' ', bubbles: true }),
       );
       expect(reachedPlayer).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('a line too tall for the player', () => {
+    function layOut(frameHeight: number, fullHeight: number): void {
+      Object.defineProperty(find('.frame'), 'clientWidth', { value: 400, configurable: true });
+      Object.defineProperty(find('.frame'), 'clientHeight', {
+        value: frameHeight,
+        configurable: true,
+      });
+      Object.defineProperty(find('.box'), 'getBoundingClientRect', {
+        value: () => {
+          const fit = Number(find('.subtitle').style.getPropertyValue('--fit') || '1');
+          return { width: 360, height: fullHeight * fit };
+        },
+        configurable: true,
+      });
+    }
+
+    function fit(): string {
+      return find('.subtitle').style.getPropertyValue('--fit') || '1';
+    }
+
+    it('shrinks the letters just enough for the line to fit', () => {
+      layOut(225, 300);
+      overlay.showCues([cue('A very long line')]);
+      expect(fit()).toBe('0.7');
+    });
+
+    it('stops shrinking at the smallest size it allows', () => {
+      layOut(225, 900);
+      overlay.showCues([cue('An enormous line')]);
+      expect(fit()).toBe('0.5');
+    });
+
+    it('gives the next line the full size again', () => {
+      layOut(225, 300);
+      overlay.showCues([cue('A very long line')]);
+      layOut(225, 80);
+      overlay.showCues([cue('Short.')]);
+      expect(fit()).toBe('1');
+    });
+
+    it('fits again when the player changes size, as in full screen', () => {
+      layOut(225, 300);
+      overlay.showCues([cue('A very long line')]);
+      layOut(1080, 300);
+      resize([{ target: find('.frame') }]);
+      expect(fit()).toBe('1');
+      layOut(225, 300);
+      resize([{ target: find('.frame') }]);
+      expect(fit()).toBe('0.7');
+    });
+
+    it('never shrinks again when only the box itself changes', () => {
+      layOut(225, 80);
+      overlay.showCues([cue('Hello')]);
+      layOut(225, 300);
+      resize([{ target: find('.box') }]);
+      expect(fit()).toBe('1');
     });
   });
 

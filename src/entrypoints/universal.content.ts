@@ -9,6 +9,7 @@ import { DEFAULT_KEYS, listenForStudyKeys } from '../study/study-keys';
 import { StudyPreferenceStore } from '../study/study-preferences';
 import { PortugueseTranslation } from '../translation/portuguese-translation';
 import { findTranslatorApi } from '../translation/translator-api';
+import { frameTranslatorApi, servePageTranslation } from '../translation/frame-translation';
 import { NativeTrackAdapter } from '../universal/native-track-adapter';
 import { ScreenCaptionAdapter } from '../universal/screen-caption-adapter';
 import {
@@ -31,7 +32,8 @@ export default defineContentScript({
   registration: 'runtime',
   cssInjectionMode: 'manual',
   async main(ctx) {
-    if (window.self !== window.top && !(await mayRunInFrame())) return;
+    const inFrame = window.self !== window.top;
+    if (inFrame && !(await mayRunInFrame())) return;
     let session: SubtitleSession | undefined;
     let sessionBox: HTMLElement | undefined;
     let picker: CaptionPicker | undefined;
@@ -43,9 +45,13 @@ export default defineContentScript({
     let fontLoaded = false;
     let keys = DEFAULT_KEYS;
     const translation = new PortugueseTranslation(() => session?.render());
-    const translatorApi =
-      import.meta.env.MODE === 'e2e' ? fakeTranslatorApi(window) : findTranslatorApi(globalThis);
+    const translatorApi = inFrame
+      ? frameTranslatorApi()
+      : import.meta.env.MODE === 'e2e'
+        ? fakeTranslatorApi(window)
+        : findTranslatorApi(globalThis);
     void translation.prepare(translatorApi, window, ctx.signal);
+    if (!inFrame) servePageTranslation(translation, ctx.signal);
     listenForStudyKeys(
       window,
       (command) => !ctx.isInvalid && (session?.handleCommand(command) ?? false),
@@ -117,10 +123,11 @@ export default defineContentScript({
       sendResponse: (response: { received: boolean }) => void,
     ) => {
       const type = readSiteMessage(message);
+      if (type === null) return;
       if (type === SITE_DEACTIVATED.type) ctx.abort();
       if (type === PICK_CAPTION.type) pickCaption();
       if (type === LOAD_FILE.type) openFileLoader();
-      sendResponse({ received: type !== null });
+      sendResponse({ received: true });
     };
     browser.runtime.onMessage.addListener(answerPopup);
     ctx.onInvalidated(() => {

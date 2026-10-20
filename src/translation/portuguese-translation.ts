@@ -9,6 +9,8 @@ import { prepareTranslator, type TranslatorStatus } from './translator-setup';
 const ENGLISH_TO_PORTUGUESE = { sourceLanguage: 'en', targetLanguage: 'pt' };
 const NO_CUES: readonly Cue[] = Object.freeze([]);
 
+export type PageTranslatorStatus = 'ready' | 'preparing' | 'unsupported' | 'failed';
+
 type TrackJob = { english: SubtitleTrack; portuguese: SubtitleTrack | null; stop: AbortController };
 type LineJob = { english: string; portuguese: readonly Cue[]; stop: AbortController };
 
@@ -39,6 +41,19 @@ export class PortugueseTranslation {
 
   state(): TranslationState | null {
     return this.translationState;
+  }
+
+  pageStatus(): PageTranslatorStatus {
+    if (this.cueTranslator) return 'ready';
+    const kind = this.translationState?.kind;
+    if (kind === 'unsupported') return 'unsupported';
+    if (kind === 'download-failed') return 'failed';
+    return 'preparing';
+  }
+
+  async translateText(text: string, signal: AbortSignal): Promise<string | null> {
+    if (!this.cueTranslator) throw new Error('The page translator is not ready');
+    return this.cueTranslator.translateLine(text, signal);
   }
 
   cuesFor(english: SubtitleTrack, timeMs: number): readonly Cue[] {

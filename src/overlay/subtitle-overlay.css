@@ -65,7 +65,7 @@
 }
 
 .subtitle {
-  font-size: max(1.25em, 4cqh);
+  font-size: max(1em, calc(max(1.25em, 4cqh) * var(--fit, 1)));
 }
 
 .strip {

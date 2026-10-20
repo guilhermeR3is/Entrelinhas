@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>English track</title>
+    <style>
+      body {
+        margin: 2rem;
+        font-family: system-ui, sans-serif;
+      }
+      .lesson {
+        padding: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>A lesson with English subtitles only</h1>
+    <div class="lesson">
+      <video src="clock.webm" width="480" height="270" muted controls preload="auto">
+        <track kind="subtitles" src="subtitles.vtt" srclang="en" label="English" default />
+      </video>
+    </div>
+  </body>
+</html>

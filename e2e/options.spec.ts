@@ -20,6 +20,9 @@ function row(page: Page, name: string) {
 test('lists every control with its default key', async ({ page, optionsUrl }) => {
   await page.goto(optionsUrl);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Atalhos do teclado');
+  await expect(page.locator('.intro')).toContainText(
+    'Valem no YouTube e nos sites que você ativou',
+  );
   await expect(page.locator('.shortcut .name')).toHaveText([
     'Mais devagar',
     'Mais rápido',

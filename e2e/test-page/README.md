@@ -29,5 +29,6 @@ como o H.264.
 endereços `*.localhost` vão sempre para a própria máquina, pelo IPv4 ou pelo IPv6 (no Linux do CI, o
 servidor de teste só escuta em `::1`, e `127.0.0.1` é recusado).
 
-`foreign-player.html` traz o mesmo player de `player.localhost`, outra origem, como um curso que usa o
+`foreign-player.html` traz de `player.localhost`, outra origem, o player `english-track.html` (só a trilha
+em inglês, para o português ter que vir da tradução feita pela página de cima), como um curso que usa o
 player de outra empresa. Só a build de teste tem a permissão de `player.localhost`.

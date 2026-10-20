@@ -36,6 +36,8 @@ const NO_CUES: readonly Cue[] = Object.freeze([]);
 const CONTROLS_GAP_PX = 8;
 const DRAG_THRESHOLD_PX = 4;
 const KEY_STEP = 0.05;
+const FIT_STEP = 0.1;
+const MIN_FIT = 0.5;
 const ARROW_STEPS: Partial<Record<string, { x: number; y: number }>> = {
   ArrowLeft: { x: -1, y: 0 },
   ArrowRight: { x: 1, y: 0 },
@@ -94,6 +96,7 @@ export class SubtitleOverlay {
   private controlsLift = 0;
   private drag: BoxDrag | null = null;
   private clickEndsDrag = false;
+  private fit = 1;
 
   constructor(
     container: Element,
@@ -133,7 +136,8 @@ export class SubtitleOverlay {
     this.frame = this.element('div', 'frame', this.box, this.status, this.announcer);
     container.append(this.frame);
     this.listenForMoves(this.strip.handle);
-    const resizeObserver = new ResizeObserver(() => {
+    const resizeObserver = new ResizeObserver((entries) => {
+      if (entries.some((entry) => entry.target === this.frame)) this.fitLine();
       this.place();
     });
     resizeObserver.observe(this.frame);
@@ -159,6 +163,7 @@ export class SubtitleOverlay {
     this.subtitle.hidden = english.length === 0 && portuguese.length === 0;
     this.renderPortuguese();
     this.renderBox();
+    this.fitLine();
     if (!this.subtitle.hidden) this.hideNotice();
   }
 
@@ -350,6 +355,21 @@ export class SubtitleOverlay {
     if (!this.drag?.moved) {
       this.box.classList.toggle('top-edge', offset.edge === 'top' && box.height <= frame.height);
     }
+  }
+
+  private fitLine(): void {
+    this.setFit(1);
+    const { height } = this.frameSize();
+    if (this.box.hidden || height === 0) return;
+    while (this.boxSize().height > height && this.fit > MIN_FIT) {
+      this.setFit(Math.max(MIN_FIT, Math.round((this.fit - FIT_STEP) * 10) / 10));
+    }
+  }
+
+  private setFit(fit: number): void {
+    if (fit === this.fit) return;
+    this.fit = fit;
+    this.subtitle.style.setProperty('--fit', String(fit));
   }
 
   private frameSize(): Size {
