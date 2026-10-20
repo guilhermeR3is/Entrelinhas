@@ -30,6 +30,25 @@ async function seek(page: Page, seconds: number): Promise<void> {
   }, seconds);
 }
 
+async function sendToTestPage(context: BrowserContext, message: object): Promise<void> {
+  const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  await worker.evaluate(async (sent) => {
+    const tabs = (
+      globalThis as unknown as {
+        chrome: {
+          tabs: {
+            query: (filter: object) => Promise<{ id?: number }[]>;
+            sendMessage: (tabId: number, message: unknown) => Promise<unknown>;
+          };
+        };
+      }
+    ).chrome.tabs;
+    const [tab] = await tabs.query({ url: 'http://localhost/*' });
+    if (tab?.id === undefined) throw new Error('Test page tab not found');
+    await tabs.sendMessage(tab.id, sent);
+  }, message);
+}
+
 test.beforeEach(async ({ context }) => {
   await expect
     .poll(async () =>
@@ -74,6 +93,19 @@ test('keeps the caption inside the video area', async ({ page }) => {
   expect(captionBox.y + captionBox.height).toBeLessThanOrEqual(videoBox.y + videoBox.height);
 });
 
+test('lets clicks on the video reach the player, outside the caption box', async ({ page }) => {
+  await page.goto('/native-tracks.html');
+  await seek(page, 0.75);
+  await expect(page.locator(ENGLISH)).toBeVisible();
+  const reached = await page.evaluate(() => {
+    const video = document.querySelector('video');
+    const box = video?.getBoundingClientRect();
+    if (!box) return null;
+    return document.elementFromPoint(box.left + 20, box.top + 20)?.tagName.toLowerCase();
+  });
+  expect(reached).toBe('video');
+});
+
 test('Z slows the video down on any site', async ({ page }) => {
   await page.goto('/native-tracks.html');
   await expect(page.locator(OVERLAY)).toBeAttached();
@@ -92,22 +124,7 @@ test('steps aside and gives the site its subtitles back when the person turns th
   await seek(page, 0.75);
   await expect(page.locator(ENGLISH)).toBeVisible();
 
-  const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
-  await worker.evaluate(async () => {
-    const tabs = (
-      globalThis as unknown as {
-        chrome: {
-          tabs: {
-            query: (filter: object) => Promise<{ id?: number }[]>;
-            sendMessage: (tabId: number, message: unknown) => Promise<unknown>;
-          };
-        };
-      }
-    ).chrome.tabs;
-    const [tab] = await tabs.query({ url: 'http://localhost/*' });
-    if (tab?.id === undefined) throw new Error('Test page tab not found');
-    await tabs.sendMessage(tab.id, { type: 'projeto-bilingue:site-deactivated' }).catch(() => null);
-  });
+  await sendToTestPage(context, { type: 'projeto-bilingue:site-deactivated' });
 
   await expect(page.locator(OVERLAY)).toHaveCount(0);
   const modes = await page.evaluate(() =>
@@ -152,5 +169,63 @@ test.describe('on a site whose player draws its own captions', () => {
     await expect(page.locator(ENGLISH)).toBeVisible();
     await seek(page, 6);
     await expect(page.locator(`${OVERLAY} .subtitle`)).toBeHidden();
+  });
+});
+
+test.describe('picking the caption on the screen', () => {
+  const PICK = { type: 'projeto-bilingue:pick-caption' };
+  const STRIP = `${OVERLAY} .picker-strip`;
+
+  async function storedRules(context: BrowserContext): Promise<unknown> {
+    const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+    return worker.evaluate(async () => {
+      const local = (
+        globalThis as unknown as {
+          chrome: {
+            storage: { local: { get: (key: string) => Promise<Record<string, unknown>> } };
+          };
+        }
+      ).chrome.storage.local;
+      return (await local.get('siteRules')).siteRules;
+    });
+  }
+
+  test.beforeEach(async ({ page, context }) => {
+    await page.goto('/screen-captions.html');
+    await expect(page.locator(OVERLAY)).toBeAttached();
+    await seek(page, 1);
+    await sendToTestPage(context, PICK);
+    await expect(page.locator(STRIP)).toContainText('Clique na legenda do vídeo. Esc cancela.');
+  });
+
+  test('outlines the text under the mouse, learns it on click and reads it from then on', async ({
+    page,
+    context,
+  }) => {
+    const line = page.locator('.fp-line');
+    await line.hover();
+    await expect(page.locator(`${OVERLAY} .picker-outline`)).toBeVisible();
+    await line.click();
+
+    await expect(page.locator(STRIP)).toContainText('aprendida');
+    await expect(page.locator(ENGLISH)).toHaveText('Hello, this is the test page.');
+    await expect(line).toHaveCSS('visibility', 'hidden');
+    expect(await storedRules(context)).toEqual({
+      'localhost:4321': { captionSelector: 'div.fp-captions span.fp-line' },
+    });
+    expect(await page.evaluate(() => document.querySelector('video')?.paused)).toBe(true);
+  });
+
+  test('asks again when the click lands on the video where there is no text', async ({ page }) => {
+    const video = await page.locator('video').boundingBox();
+    if (!video) throw new Error('Missing video box');
+    await page.mouse.click(video.x + 40, video.y + 40);
+    await expect(page.locator(STRIP)).toContainText('Esse elemento não tem texto.');
+  });
+
+  test('gives up with Esc and shows nothing learned', async ({ page, context }) => {
+    await page.keyboard.press('Escape');
+    await expect(page.locator(STRIP)).toHaveCount(0);
+    expect(await storedRules(context)).toBeUndefined();
   });
 });

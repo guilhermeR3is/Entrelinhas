@@ -11,6 +11,7 @@ function unpackedExtensionId(directory: string): string {
 
 export interface ActiveTabStub {
   url: string;
+  id?: number;
   delayMs?: number;
   rejectTimes?: number;
 }
@@ -24,7 +25,7 @@ export async function stubActiveTab(page: Page, stub: ActiveTabStub): Promise<vo
         rejectionsLeft -= 1;
         throw new Error('Simulated tabs.query failure');
       }
-      return [{ url: tabStub.url }];
+      return [{ url: tabStub.url, id: tabStub.id }];
     };
     const extensionApi = (globalThis as unknown as { chrome: { tabs: object } }).chrome;
     Object.defineProperty(extensionApi.tabs, 'query', { value: query });

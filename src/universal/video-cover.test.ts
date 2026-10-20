@@ -28,7 +28,7 @@ it('places the box over the video and follows its size', () => {
 
   coverVideo(box, video);
   expect(box.style.cssText).toBe(
-    'position: absolute; left: 16px; top: 40px; width: 480px; height: 270px;',
+    'position: absolute; pointer-events: none; left: 16px; top: 40px; width: 480px; height: 270px;',
   );
 
   Object.assign(layout, { offsetWidth: 1280, offsetHeight: 720 });

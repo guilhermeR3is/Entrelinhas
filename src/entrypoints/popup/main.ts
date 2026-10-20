@@ -4,7 +4,7 @@ import './style.css';
 import { browser } from 'wxt/browser';
 import { logger } from '../../logger';
 import { tabStatusFromUrl } from '../../tab-status';
-import { SITE_DEACTIVATED } from '../../universal/site-message';
+import { PICK_CAPTION, SITE_DEACTIVATED } from '../../universal/site-message';
 import { ACTION_LABELS, entryFor, thumbTabLetter, type EntryState } from './entry';
 
 type SiteState = Extract<EntryState, { origin: string }>;
@@ -26,6 +26,7 @@ const headword = element('.headword');
 const wordClass = element('.word-class');
 const definition = element('.definition');
 const action = element('.entry-action');
+const actionLink = element('.entry-link');
 const thumbTab = element('.thumb-tab');
 const shortcutsLink = element('.shortcuts-link');
 let current: CurrentTab = { state: { kind: 'error' }, tabId: undefined };
@@ -50,9 +51,11 @@ function breakAtDots(text: string): Node[] {
 }
 
 function setBusy(busy: boolean): void {
-  action.toggleAttribute('disabled', busy);
-  if (busy) action.setAttribute('aria-busy', 'true');
-  else action.removeAttribute('aria-busy');
+  for (const control of [action, actionLink]) {
+    control.toggleAttribute('disabled', busy);
+    if (busy) control.setAttribute('aria-busy', 'true');
+    else control.removeAttribute('aria-busy');
+  }
 }
 
 function show(state: EntryState, { animate }: { animate: boolean }): void {
@@ -66,6 +69,9 @@ function show(state: EntryState, { animate }: { animate: boolean }): void {
   action.hidden = view.action === null;
   action.dataset.action = view.action ?? '';
   action.textContent = view.action ? ACTION_LABELS[view.action] : '';
+  actionLink.hidden = view.secondaryAction === null;
+  actionLink.dataset.action = view.secondaryAction ?? '';
+  actionLink.textContent = view.secondaryAction ? ACTION_LABELS[view.secondaryAction] : '';
   setBusy(false);
   checking.hidden = true;
   entry.hidden = false;
@@ -133,9 +139,24 @@ async function deactivate({ site, origin }: SiteState): Promise<void> {
   show({ kind: 'available', site, origin }, { animate: true });
 }
 
-function runAction(): void {
+async function pickCaption(): Promise<void> {
+  const { tabId } = current;
+  if (tabId === undefined) {
+    show({ kind: 'error' }, { animate: true });
+    return;
+  }
+  setBusy(true);
+  try {
+    await browser.tabs.sendMessage(tabId, PICK_CAPTION);
+    window.close();
+  } catch (error) {
+    logger.error('Could not start picking the caption', error);
+    show({ kind: 'error' }, { animate: true });
+  }
+}
+
+function runAction(chosen: string | undefined): void {
   const { state } = current;
-  const chosen = action.dataset.action;
   if (chosen === 'retry') {
     void recheck();
     return;
@@ -143,6 +164,7 @@ function runAction(): void {
   if (!('origin' in state)) return;
   if (chosen === 'activate') void activate(state);
   if (chosen === 'deactivate') void deactivate(state);
+  if (chosen === 'pick') void pickCaption();
 }
 
 async function openShortcuts(): Promise<void> {
@@ -159,5 +181,9 @@ shortcutsLink.addEventListener('click', (event) => {
   event.preventDefault();
   void openShortcuts();
 });
-action.addEventListener('click', runAction);
+for (const control of [action, actionLink]) {
+  control.addEventListener('click', () => {
+    runAction(control.dataset.action);
+  });
+}
 void firstCheck();

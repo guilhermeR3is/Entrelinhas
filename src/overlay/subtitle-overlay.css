@@ -230,6 +230,22 @@
   opacity: 0;
 }
 
+.picker {
+  justify-content: flex-start;
+}
+
+.picker-strip {
+  margin-block-start: 4cqh;
+  translate: none;
+}
+
+.picker-outline {
+  position: absolute;
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .box,
   .notice {

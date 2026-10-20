@@ -11,22 +11,21 @@ import { PortugueseTranslation } from '../translation/portuguese-translation';
 import { findTranslatorApi } from '../translation/translator-api';
 import { NativeTrackAdapter } from '../universal/native-track-adapter';
 import { ScreenCaptionAdapter } from '../universal/screen-caption-adapter';
-import { isSiteDeactivated } from '../universal/site-message';
-import { readSiteRule } from '../universal/site-rules';
+import { PICK_CAPTION, SITE_DEACTIVATED, readSiteMessage } from '../universal/site-message';
+import { readSiteRule, saveSiteRule, type SiteRule } from '../universal/site-rules';
+import { captionSelector } from '../universal/caption-selector';
+import { CaptionPicker } from '../overlay/caption-picker';
 import { coverVideo } from '../universal/video-cover';
 
 export default defineContentScript({
   registration: 'runtime',
   cssInjectionMode: 'manual',
   async main(ctx) {
-    const stopOnDeactivation = (message: unknown) => {
-      if (isSiteDeactivated(message)) ctx.abort();
-    };
-    browser.runtime.onMessage.addListener(stopOnDeactivation);
-    ctx.onInvalidated(() => {
-      browser.runtime.onMessage.removeListener(stopOnDeactivation);
-    });
     let session: SubtitleSession | undefined;
+    let sessionBox: HTMLElement | undefined;
+    let picker: CaptionPicker | undefined;
+    let mounted: { container: HTMLElement; video: HTMLVideoElement } | undefined;
+    let rule: SiteRule | null = null;
     let cover: ResizeObserver | undefined;
     let fontLoaded = false;
     let keys = DEFAULT_KEYS;
@@ -42,12 +41,64 @@ export default defineContentScript({
     );
 
     const preferences = await StudyPreferenceStore.load(browser.storage.local);
-    const rule = await readSiteRule(browser.storage.local, location.host);
+    rule = await readSiteRule(browser.storage.local, location.host);
     keys = preferences.current.keys;
     preferences.followKeys((chosen) => {
       keys = chosen;
       session?.setKeys(chosen);
     }, ctx.signal);
+
+    const startSession = () => {
+      if (!mounted) return;
+      sessionBox = document.createElement('div');
+      mounted.container.append(sessionBox);
+      session = new SubtitleSession(
+        sessionBox,
+        rule
+          ? new ScreenCaptionAdapter(mounted.video, rule.captionSelector)
+          : new NativeTrackAdapter(mounted.video),
+        translation,
+        preferences,
+      );
+    };
+    const stopSession = () => {
+      session?.stop();
+      session = undefined;
+      sessionBox?.remove();
+      sessionBox = undefined;
+    };
+    const learn = async (element: Element) => {
+      const selector = captionSelector(element);
+      if (!selector) return false;
+      const learned = { captionSelector: selector };
+      await saveSiteRule(browser.storage.local, location.host, learned);
+      rule = learned;
+      return true;
+    };
+    const pickCaption = () => {
+      if (!mounted || picker) return;
+      stopSession();
+      picker = new CaptionPicker(mounted.container, mounted.video, learn, () => {
+        picker = undefined;
+        startSession();
+      });
+    };
+
+    const answerPopup = (
+      message: unknown,
+      _sender: unknown,
+      sendResponse: (response: { received: boolean }) => void,
+    ) => {
+      const type = readSiteMessage(message);
+      if (type === SITE_DEACTIVATED.type) ctx.abort();
+      if (type === PICK_CAPTION.type) pickCaption();
+      sendResponse({ received: type !== null });
+    };
+    browser.runtime.onMessage.addListener(answerPopup);
+    ctx.onInvalidated(() => {
+      browser.runtime.onMessage.removeListener(answerPopup);
+    });
+
     const ui = await createShadowRootUi(ctx, {
       name: 'projeto-bilingue-legenda',
       position: 'inline',
@@ -60,19 +111,15 @@ export default defineContentScript({
         if (!fontLoaded) loadSubtitleFont(document.fonts);
         fontLoaded = true;
         cover = coverVideo(container, video);
-        session = new SubtitleSession(
-          container,
-          rule
-            ? new ScreenCaptionAdapter(video, rule.captionSelector)
-            : new NativeTrackAdapter(video),
-          translation,
-          preferences,
-        );
+        mounted = { container, video };
+        startSession();
       },
       onRemove: () => {
+        picker?.close();
+        picker = undefined;
+        stopSession();
         cover?.disconnect();
-        session?.stop();
-        session = undefined;
+        mounted = undefined;
       },
     });
     ui.autoMount();

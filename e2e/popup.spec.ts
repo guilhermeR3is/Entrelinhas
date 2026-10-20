@@ -39,6 +39,41 @@ test('turns a site on after Chrome says yes, asking only for that address', asyn
   expect(await permissionCalls(popup)).toEqual(['request https://www.example.com/*']);
 });
 
+test('starts picking the caption in the tab and gets out of the way', async ({
+  context,
+  popupUrl,
+}) => {
+  const popup = await context.newPage();
+  await stubActiveTab(popup, { url: 'https://www.example.com/', id: 42 });
+  await stubPermissions(popup, { granted: ['https://www.example.com/*'] });
+  await popup.addInitScript(() => {
+    const sent: unknown[] = [];
+    Object.assign(window, { sentToTabs: sent });
+    const tabs = (globalThis as unknown as { chrome: { tabs: object } }).chrome.tabs;
+    Object.defineProperty(tabs, 'sendMessage', {
+      value: (tabId: number, message: unknown) => {
+        sent.push([tabId, message]);
+        return Promise.resolve({ received: true });
+      },
+    });
+    window.close = () => {
+      document.documentElement.dataset.closed = 'true';
+    };
+  });
+  await popup.goto(popupUrl);
+
+  await expect(popup.getByRole('button', { name: 'Escolher a legenda na tela' })).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Desativar neste site' })).toHaveClass(
+    /entry-link/,
+  );
+  await popup.getByRole('button', { name: 'Escolher a legenda na tela' }).click();
+
+  await expect(popup.locator('html')).toHaveAttribute('data-closed', 'true');
+  expect(
+    await popup.evaluate(() => (window as unknown as { sentToTabs: unknown[] }).sentToTabs),
+  ).toEqual([[42, { type: 'projeto-bilingue:pick-caption' }]]);
+});
+
 test('lets the person try again after saying no to Chrome', async ({ context, popupUrl }) => {
   const popup = await context.newPage();
   await stubActiveTab(popup, { url: 'https://www.example.com/' });

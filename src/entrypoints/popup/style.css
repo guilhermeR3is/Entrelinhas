@@ -94,6 +94,40 @@ body {
   cursor: progress;
 }
 
+.entry-link {
+  display: block;
+  margin-top: var(--space-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-small);
+  text-decoration: underline;
+  text-decoration-color: var(--note);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+  transition: text-decoration-color 120ms ease;
+}
+
+.entry-link:disabled {
+  color: var(--note);
+  cursor: progress;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .entry-link:not(:disabled):hover {
+    text-decoration-color: var(--ink);
+  }
+}
+
+.entry-link:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .thumb-tab {
   position: absolute;
   top: var(--space-4);
