@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { NativeTrackAdapter, type NativeTrackVideo } from './native-track-adapter';
+import { describe, expect, it, vi } from 'vitest';
+import { NativeTrackAdapter } from './native-track-adapter';
 
 type FakeCue = { startTime: number; endTime: number; text?: string };
 type FakeTrack = {
@@ -19,12 +19,17 @@ function track(fields: Partial<FakeTrack> = {}): FakeTrack {
   return { kind: 'subtitles', language: 'en', label: '', mode: 'disabled', cues: null, ...fields };
 }
 
-function createAdapter(tracks: FakeTrack[], failed: FakeTrack[] = []) {
-  const video: NativeTrackVideo = {
+function fakeVideo(tracks: FakeTrack[], failed: FakeTrack[] = []): HTMLVideoElement {
+  const video = Object.assign(new EventTarget(), {
+    currentSrc: 'https://example.com/lesson.mp4',
     textTracks: tracks,
     querySelectorAll: () => failed.map((failedTrack) => ({ track: failedTrack, readyState: 3 })),
-  };
-  return new NativeTrackAdapter(video);
+  });
+  return video as unknown as HTMLVideoElement;
+}
+
+function createAdapter(tracks: FakeTrack[], failed: FakeTrack[] = []) {
+  return new NativeTrackAdapter(fakeVideo(tracks, failed));
 }
 
 function textsAt(adapter: NativeTrackAdapter, timeMs: number): string[] {
@@ -141,5 +146,35 @@ describe('NativeTrackAdapter reading the cues', () => {
     const withEnglish = createAdapter([track({ cues: HELLO_CUES }), portuguese]);
     withEnglish.status();
     expect(portuguese.mode).toBe('hidden');
+  });
+});
+
+describe('NativeTrackAdapter as the player', () => {
+  it('is the video itself, with no ads and the source as the video key', () => {
+    const video = fakeVideo([]);
+    const adapter = new NativeTrackAdapter(video);
+    expect(adapter.player).toBe(video);
+    expect(adapter.video()).toBe(video);
+    expect(adapter.videoKey()).toBe('https://example.com/lesson.mp4');
+    expect(adapter.isShowingAd()).toBe(false);
+  });
+
+  it('asks for a new drawing when a track finishes loading, until stopped', () => {
+    const video = fakeVideo([]);
+    const adapter = new NativeTrackAdapter(video);
+    const onCaptionsChange = vi.fn();
+    adapter.start({ onCaptionsChange, onControlsLift: vi.fn() });
+    video.dispatchEvent(new Event('load'));
+    expect(onCaptionsChange).toHaveBeenCalledTimes(1);
+
+    adapter.stop();
+    video.dispatchEvent(new Event('load'));
+    expect(onCaptionsChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the English track when the session hides the site captions', () => {
+    const english = track({ mode: 'showing' });
+    createAdapter([english]).hideSiteCaptions();
+    expect(english.mode).toBe('hidden');
   });
 });

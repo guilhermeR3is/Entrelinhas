@@ -1,3 +1,4 @@
+import type { PlayerAdapter, PlayerEvents } from '../session/player-adapter';
 import type { CaptionStatus } from '../subtitles/caption-status';
 import type { Cue } from '../subtitles/cue';
 import { isEnglish, isPortuguese } from '../subtitles/language';
@@ -12,11 +13,6 @@ type NativeTrack = {
   mode: TextTrackMode;
   readonly cues: ArrayLike<NativeCue> | null;
 };
-type NativeTrackElement = { readonly track: NativeTrack; readonly readyState: number };
-export type NativeTrackVideo = {
-  readonly textTracks: ArrayLike<NativeTrack>;
-  querySelectorAll(selectors: 'track'): ArrayLike<NativeTrackElement>;
-};
 type ReadTrack = { source: NativeTrack; cueCount: number; track: SubtitleTrack };
 type TrackChoice = { tracks: NativeTrack[]; english: NativeTrack | null };
 
@@ -26,12 +22,48 @@ const TRACK_ERROR = 3;
 const ENGLISH_LABEL = /^english\b/i;
 const PORTUGUESE_LABEL = /^portugu(?:ese|ês)\b/i;
 
-export class NativeTrackAdapter {
+export class NativeTrackAdapter implements PlayerAdapter {
+  private readonly listeners = new AbortController();
   private chosenEnglish: NativeTrack | null = null;
   private english: ReadTrack | null = null;
   private portuguese: ReadTrack | null = null;
 
-  constructor(private readonly video: NativeTrackVideo) {}
+  constructor(private readonly media: HTMLVideoElement) {}
+
+  get player(): Element {
+    return this.media;
+  }
+
+  start(events: PlayerEvents): void {
+    this.media.addEventListener('load', events.onCaptionsChange, {
+      capture: true,
+      signal: this.listeners.signal,
+    });
+  }
+
+  stop(): void {
+    this.listeners.abort();
+  }
+
+  video(): HTMLVideoElement {
+    return this.media;
+  }
+
+  videoKey(): string | null {
+    return this.media.currentSrc || null;
+  }
+
+  isShowingAd(): boolean {
+    return false;
+  }
+
+  personChangedSpeed(): boolean {
+    return false;
+  }
+
+  hideSiteCaptions(): void {
+    this.refresh();
+  }
 
   status(): CaptionStatus {
     const { tracks, english } = this.refresh();
@@ -55,7 +87,7 @@ export class NativeTrackAdapter {
   }
 
   private refresh(): TrackChoice {
-    const tracks = Array.from(this.video.textTracks).filter((track) =>
+    const tracks: NativeTrack[] = Array.from(this.media.textTracks).filter((track) =>
       SUBTITLE_KINDS.has(track.kind),
     );
     const englishTracks = tracks.filter(isEnglishTrack);
@@ -80,7 +112,7 @@ export class NativeTrackAdapter {
   }
 
   private failedToLoad(track: NativeTrack): boolean {
-    return Array.from(this.video.querySelectorAll('track')).some(
+    return Array.from(this.media.querySelectorAll('track')).some(
       (element) => element.track === track && element.readyState === TRACK_ERROR,
     );
   }

@@ -47,9 +47,11 @@ test('draws the caption on top of the video layer', async ({ page }) => {
   await open(page, 'video-a');
   await expect(page.locator(ENGLISH)).toBeVisible();
 
-  const topElement = await page.evaluate((overlay) => {
+  const topElement = await page.evaluate(async (overlay) => {
     const root = document.querySelector(overlay)?.shadowRoot;
     const frame = root?.querySelector<HTMLElement>('.frame');
+    const lift = root?.querySelector('.box')?.getAnimations() ?? [];
+    await Promise.all(lift.map((animation) => animation.finished));
     const box = root?.querySelector('.subtitle')?.getBoundingClientRect();
     if (!frame || !box) return null;
     frame.style.pointerEvents = 'auto';

@@ -8,8 +8,9 @@ import { DEFAULT_KEYS, listenForStudyKeys } from '../study/study-keys';
 import { StudyPreferenceStore } from '../study/study-preferences';
 import { PortugueseTranslation } from '../translation/portuguese-translation';
 import { findTranslatorApi } from '../translation/translator-api';
-import { SubtitleSession } from '../youtube/subtitle-session';
-import { YouTubeAdapter } from '../youtube/youtube-adapter';
+import { SubtitleSession } from '../session/subtitle-session';
+import { YouTubeCaptions } from '../youtube/youtube-captions';
+import { YouTubePlayerAdapter } from '../youtube/youtube-player-adapter';
 
 const PLAYER_SELECTOR = '#movie_player';
 
@@ -18,7 +19,7 @@ export default defineContentScript({
   runAt: 'document_start',
   cssInjectionMode: 'ui',
   async main(ctx) {
-    const adapter = new YouTubeAdapter(window);
+    const captions = new YouTubeCaptions(window);
     let session: SubtitleSession | undefined;
     let fontLoaded = false;
     let keys = DEFAULT_KEYS;
@@ -34,7 +35,7 @@ export default defineContentScript({
     );
     ctx.addEventListener(window, 'message', (event) => {
       if (ctx.isInvalid) return;
-      adapter.receive(event);
+      captions.receive(event);
       session?.render();
     });
 
@@ -53,7 +54,12 @@ export default defineContentScript({
         if (!player) return;
         if (!fontLoaded) loadSubtitleFont(document.fonts);
         fontLoaded = true;
-        session = new SubtitleSession(container, player, adapter, translation, preferences);
+        session = new SubtitleSession(
+          container,
+          new YouTubePlayerAdapter(player, captions),
+          translation,
+          preferences,
+        );
       },
       onRemove: () => {
         session?.stop();
