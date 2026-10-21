@@ -690,3 +690,55 @@ test('lines up the dashes of two speakers in one column, in the middle of the vi
 
   expectOneDashColumnInTheMiddle(await dialogueLayout(page, '.english, .portuguese'), 4);
 });
+
+test.describe('a video put in full screen on its own', () => {
+  async function coverState(page: Page) {
+    return page.evaluate((host) => {
+      const container = document.querySelector(host)?.shadowRoot?.querySelector('div');
+      if (!container) throw new Error('No caption container');
+      const rect = container.getBoundingClientRect();
+      return {
+        onTop: container.matches(':popover-open'),
+        rect: [rect.left, rect.top, rect.width, rect.height].map(Math.round),
+        viewport: [window.innerWidth, window.innerHeight],
+      };
+    }, OVERLAY);
+  }
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/native-tracks.html');
+    await expect(page.locator(OVERLAY)).toBeAttached();
+    await seek(page, 0.75);
+    await expect(page.locator(ENGLISH)).toBeVisible();
+    await page.locator('h1').click();
+    await page.evaluate(() => document.querySelector('video')?.requestFullscreen());
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement?.tagName)).toBe('VIDEO');
+  });
+
+  test('keeps the caption over the whole screen, without the strip', async ({ page }) => {
+    await expect.poll(() => coverState(page)).toMatchObject({ onTop: true });
+    const { rect, viewport } = await coverState(page);
+    expect(rect).toEqual([0, 0, ...viewport]);
+    await expect(page.locator(ENGLISH)).toHaveText('Hello, this is the test page.');
+    await expect(page.locator(PORTUGUESE)).toHaveText('Olá, esta é a página de teste.');
+    await expect(page.locator(`${OVERLAY} .strip`)).toBeHidden();
+  });
+
+  test('still answers the study keys', async ({ page }) => {
+    await page.keyboard.press('z');
+    await expect
+      .poll(() => page.evaluate(() => document.querySelector('video')?.playbackRate))
+      .toBe(0.95);
+  });
+
+  test('goes back over the video when the full screen ends', async ({ page }) => {
+    await page.evaluate(() => document.exitFullscreen());
+    await expect.poll(() => coverState(page)).toMatchObject({ onTop: false });
+    const videoRect = await page.locator('video').evaluate((video) => {
+      const rect = video.getBoundingClientRect();
+      return [rect.left, rect.top, rect.width, rect.height].map(Math.round);
+    });
+    expect((await coverState(page)).rect).toEqual(videoRect);
+    await expect(page.locator(ENGLISH)).toHaveText('Hello, this is the test page.');
+  });
+});

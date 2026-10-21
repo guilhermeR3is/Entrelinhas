@@ -27,7 +27,7 @@ import { FileLoader } from '../overlay/file-loader';
 import type { Cue } from '../subtitles/cue';
 import { readSubtitleFile } from '../subtitles/subtitle-file';
 import { FileTrackAdapter } from '../universal/file-track-adapter';
-import { coverVideo } from '../universal/video-cover';
+import { coverVideo, type VideoCover } from '../universal/video-cover';
 import { mayRunInFrame } from '../universal/frame-access';
 
 export default defineContentScript({
@@ -43,7 +43,7 @@ export default defineContentScript({
     let fileCues: readonly Cue[] | null = null;
     let mounted: { container: HTMLElement; video: HTMLVideoElement } | undefined;
     let rule: SiteRule | null = null;
-    let cover: ResizeObserver | undefined;
+    let cover: VideoCover | undefined;
     let fontLoaded = false;
     let stoppedByError = false;
     let keys = DEFAULT_KEYS;

@@ -90,6 +90,10 @@
   border-block-end: 1px solid var(--rule);
 }
 
+.video-fullscreen .strip.shown {
+  display: none;
+}
+
 .box.top-edge:has(.subtitle:not([hidden])) .strip {
   border-block-start: 1px solid var(--rule);
   border-block-end: 0;
