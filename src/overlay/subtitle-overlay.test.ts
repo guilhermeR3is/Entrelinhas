@@ -67,6 +67,31 @@ describe('SubtitleOverlay', () => {
     expect(find('.english').textContent).toBe("I don't know.\nMaybe home.\n[music]");
   });
 
+  it('marks a line of two speakers in each language on its own', () => {
+    overlay.showCues(
+      [cue('- Where are you going?\n- Home.')],
+      [cue('Aonde você vai? Para casa.', 'pt')],
+    );
+    expect(find('.english').classList.contains('dialogue')).toBe(true);
+    expect(find('.portuguese').classList.contains('dialogue')).toBe(false);
+
+    overlay.showCues([cue('Hello')], [cue('- Olá.\n- Oi.', 'pt')]);
+    expect(find('.english').classList.contains('dialogue')).toBe(false);
+    expect(find('.portuguese').classList.contains('dialogue')).toBe(true);
+  });
+
+  it('treats two cues of one speaker each as a dialogue', () => {
+    overlay.showCues([cue('- Ready?'), cue('- Yes.')]);
+    expect(find('.english').classList.contains('dialogue')).toBe(true);
+  });
+
+  it('drops the dialogue mark when the Portuguese gives way to the translation state', () => {
+    overlay.showCues([cue('- Ready?\n- Yes.')], [cue('- Pronto?\n- Sim.', 'pt')]);
+    overlay.showCues([cue('- Ready?\n- Yes.')]);
+    overlay.showTranslationState({ kind: 'waiting-for-gesture' });
+    expect(find('.portuguese').classList.contains('dialogue')).toBe(false);
+  });
+
   it('hides the whole block between cues instead of leaving an empty box', () => {
     overlay.showCues([cue('Hello')]);
     overlay.showCues([]);

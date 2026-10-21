@@ -31,6 +31,49 @@ async function seek(page: Page, seconds: number): Promise<void> {
   }, seconds);
 }
 
+type DialogueLayout = { dashes: number[]; leftGap: number; rightGap: number };
+
+async function dialogueLayout(page: Page, lines: string): Promise<DialogueLayout> {
+  return page.evaluate(
+    ({ host, selector }) => {
+      const root = document.querySelector(host)?.shadowRoot;
+      const subtitle = root?.querySelector('.subtitle');
+      if (!root || !subtitle) throw new Error('No subtitle on screen');
+      const shown = Array.from(root.querySelectorAll(selector));
+      const dashes = shown.flatMap((line) => {
+        const text = line.firstChild;
+        if (!(text instanceof Text)) throw new Error('A line without text');
+        return [0, text.data.indexOf('\n') + 1].map((offset) => {
+          const range = document.createRange();
+          range.setStart(text, offset);
+          range.setEnd(text, offset + 1);
+          return range.getBoundingClientRect().left;
+        });
+      });
+      const textRects = shown.flatMap((line) => {
+        const range = document.createRange();
+        range.selectNodeContents(line);
+        return Array.from(range.getClientRects());
+      });
+      const box = subtitle.getBoundingClientRect();
+      return {
+        dashes,
+        leftGap: Math.min(...textRects.map((rect) => rect.left)) - box.left,
+        rightGap: box.right - Math.max(...textRects.map((rect) => rect.right)),
+      };
+    },
+    { host: OVERLAY, selector: lines },
+  );
+}
+
+function expectOneDashColumnInTheMiddle(layout: DialogueLayout, dashCount: number): void {
+  expect(layout.dashes).toHaveLength(dashCount);
+  for (const dash of layout.dashes) {
+    expect(Math.abs(dash - (layout.dashes[0] ?? 0))).toBeLessThan(1);
+  }
+  expect(Math.abs(layout.leftGap - layout.rightGap)).toBeLessThan(1);
+}
+
 async function sendToTestPage(context: BrowserContext, message: object): Promise<void> {
   const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
   await worker.evaluate(async (sent) => {
@@ -300,6 +343,28 @@ test.describe('loading a subtitle file', () => {
     await expect(page.locator(`${OVERLAY} .delay`)).toHaveText('−0,4 s');
     await expect(page.locator(ENGLISH)).toHaveText('Nobody drew it on the page.');
     expect(await page.evaluate(() => document.querySelector('video')?.paused)).toBe(true);
+  });
+
+  test('lines up the English dashes alone when the Portuguese is not a dialogue', async ({
+    page,
+    context,
+  }) => {
+    await openLoader(page, context, '/plain-video.html?fake-translator=available');
+    await chooseFile(page, {
+      name: 'dialogue.srt',
+      mimeType: 'application/x-subrip',
+      buffer: Buffer.from(
+        '1\n00:00:00,500 --> 00:00:02,000\n- Where are you going?\n- Home, before it starts to rain.\n',
+      ),
+    });
+    await page.locator('h1').click();
+    await seek(page, 1);
+    await expect(page.locator(PORTUGUESE)).toHaveText(
+      '[pt] - Where are you going?\n- Home, before it starts to rain.',
+    );
+
+    expectOneDashColumnInTheMiddle(await dialogueLayout(page, '.english'), 2);
+    await expect(page.locator(PORTUGUESE)).toHaveCSS('text-align', 'center');
   });
 
   test('keeps the translation on screen while the delay changes', async ({ page, context }) => {
@@ -601,4 +666,27 @@ test.describe('when the site changes under the extension', () => {
       });
     await expect(page.locator('.fp-line')).toHaveCSS('visibility', 'visible');
   });
+});
+
+test('lines up the dashes of two speakers in one column, in the middle of the video', async ({
+  page,
+}) => {
+  const tracks = {
+    'subtitles.vtt': '- Where are you going?\n- Home, before it starts to rain.',
+    'subtitles.pt.vtt': '- Aonde você vai?\n- Para casa, antes que comece a chover.',
+  };
+  for (const [file, text] of Object.entries(tracks)) {
+    await page.route(`**/${file}`, (route) =>
+      route.fulfill({
+        contentType: 'text/vtt',
+        body: `WEBVTT\n\n00:00:00.500 --> 00:00:05.000\n${text}\n`,
+      }),
+    );
+  }
+  await page.goto('/native-tracks.html');
+  await expect(page.locator(OVERLAY)).toBeAttached();
+  await seek(page, 1);
+  await expect(page.locator(PORTUGUESE)).toHaveText(tracks['subtitles.pt.vtt']);
+
+  expectOneDashColumnInTheMiddle(await dialogueLayout(page, '.english, .portuguese'), 4);
 });

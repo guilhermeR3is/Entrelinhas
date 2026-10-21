@@ -1,5 +1,6 @@
 import type { StudyKeys } from '../study/study-keys';
 import { type Cue, spokenLength } from '../subtitles/cue';
+import { isDialogue } from '../subtitles/dialogue';
 import {
   DEFAULT_PLACEMENT,
   offsetFor,
@@ -401,6 +402,7 @@ export class SubtitleOverlay {
         this.portuguese.classList.remove('revealed');
       }
       this.portuguese.textContent = text;
+      this.portuguese.classList.toggle('dialogue', isDialogue(text));
     } else if (state) {
       this.portuguese.replaceChildren(TRANSLATION_STATES[state.kind]);
       if (state.kind === 'downloading') {
@@ -412,6 +414,7 @@ export class SubtitleOverlay {
     } else {
       this.portuguese.replaceChildren();
     }
+    if (portuguese.length === 0) this.portuguese.classList.remove('dialogue');
     this.portuguese.hidden = portuguese.length === 0 && !state;
   }
 
@@ -427,6 +430,7 @@ export class SubtitleOverlay {
       return index === 0 ? line : [this.document.createTextNode('\n'), ...line];
     });
     this.english.replaceChildren(...lines);
+    this.english.classList.toggle('dialogue', isDialogue(textOf(english)));
   }
 
   private element(tag: string, className: string, ...children: Node[]): HTMLElement {

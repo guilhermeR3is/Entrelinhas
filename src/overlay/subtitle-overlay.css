@@ -201,6 +201,23 @@
   white-space: pre-line;
 }
 
+.english.dialogue,
+.portuguese.dialogue {
+  width: fit-content;
+  margin-inline: auto;
+  text-align: start;
+}
+
+.subtitle:not([hidden]):has(> .english.dialogue):has(> .portuguese.dialogue) {
+  display: grid;
+  justify-content: center;
+}
+
+.subtitle:has(> .english.dialogue):has(> .portuguese.dialogue) > .dialogue {
+  width: auto;
+  margin-inline: 0;
+}
+
 .translation-state {
   font-style: italic;
 }
