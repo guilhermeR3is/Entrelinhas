@@ -14,6 +14,8 @@ function fakeVideo(tracks: FakeTrack[] = []): HTMLVideoElement {
   const video = Object.assign(new EventTarget(), {
     currentSrc: 'blob:https://example.com/7f3a',
     textTracks: tracks,
+    controls: false,
+    ownerDocument: Object.assign(new EventTarget(), { documentElement: new EventTarget() }),
   });
   return video as unknown as HTMLVideoElement;
 }

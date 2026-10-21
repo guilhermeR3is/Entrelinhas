@@ -24,6 +24,8 @@ function fakeVideo(tracks: FakeTrack[], failed: FakeTrack[] = []): HTMLVideoElem
     currentSrc: 'https://example.com/lesson.mp4',
     textTracks: tracks,
     querySelectorAll: () => failed.map((failedTrack) => ({ track: failedTrack, readyState: 3 })),
+    controls: false,
+    ownerDocument: Object.assign(new EventTarget(), { documentElement: new EventTarget() }),
   });
   return video as unknown as HTMLVideoElement;
 }

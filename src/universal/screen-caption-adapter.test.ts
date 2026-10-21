@@ -22,6 +22,7 @@ describe('ScreenCaptionAdapter', () => {
     const { window } = new JSDOM(PAGE);
     document = window.document;
     vi.stubGlobal('MutationObserver', window.MutationObserver);
+    vi.stubGlobal('AbortController', window.AbortController);
     const video = document.querySelector('video');
     if (!video) throw new Error('Missing video');
     adapter = new ScreenCaptionAdapter(video, SELECTOR);

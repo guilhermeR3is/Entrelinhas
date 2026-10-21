@@ -742,3 +742,49 @@ test.describe('a video put in full screen on its own', () => {
     await expect(page.locator(ENGLISH)).toHaveText('Hello, this is the test page.');
   });
 });
+
+test.describe('the native control bar of the video', () => {
+  async function gapAboveBottom(page: Page): Promise<number> {
+    await page.waitForFunction((host) => {
+      const box = document.querySelector(host)?.shadowRoot?.querySelector('.box');
+      return box !== null && box !== undefined && box.getAnimations().length === 0;
+    }, OVERLAY);
+    return page.evaluate((host) => {
+      const box = document.querySelector(host)?.shadowRoot?.querySelector('.box');
+      const video = document.querySelector('video');
+      if (!box || !video) throw new Error('Missing box or video');
+      return Math.round(video.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom);
+    }, OVERLAY);
+  }
+
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/subtitles.vtt', (route) =>
+      route.fulfill({
+        contentType: 'text/vtt',
+        body: 'WEBVTT\n\n00:00:00.000 --> 00:00:12.000\nHello, this is the test page.\n',
+      }),
+    );
+    await page.goto('/native-tracks.html');
+    await expect(page.locator(OVERLAY)).toBeAttached();
+    await seek(page, 0.75);
+    await expect(page.locator(ENGLISH)).toBeVisible();
+  });
+
+  test('keeps the caption above the bar while the video is paused', async ({ page }) => {
+    await expect.poll(() => gapAboveBottom(page)).toBe(62);
+  });
+
+  test('lets the caption down while the video plays, and up while the pointer moves over it', async ({
+    page,
+  }) => {
+    await page.mouse.move(900, 600);
+    await page.evaluate(() => document.querySelector('video')?.play());
+    await expect.poll(() => gapAboveBottom(page)).toBe(11);
+
+    const video = await page.locator('video').boundingBox();
+    if (!video) throw new Error('No video box');
+    await page.mouse.move(video.x + video.width / 2, video.y + 40);
+    await expect.poll(() => gapAboveBottom(page)).toBe(62);
+    await expect.poll(() => gapAboveBottom(page), { timeout: 4000 }).toBe(11);
+  });
+});

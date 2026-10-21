@@ -1,4 +1,5 @@
 import type { PlayerAdapter, PlayerEvents } from '../session/player-adapter';
+import { watchNativeControls } from './native-controls';
 import type { CaptionStatus } from '../subtitles/caption-status';
 import type { Cue } from '../subtitles/cue';
 import { isEnglish, isPortuguese } from '../subtitles/language';
@@ -28,6 +29,7 @@ export class NativeTrackAdapter implements PlayerAdapter {
   private chosenEnglish: NativeTrack | null = null;
   private english: ReadTrack | null = null;
   private portuguese: ReadTrack | null = null;
+  private stopControls: () => void = () => undefined;
 
   constructor(private readonly media: HTMLVideoElement) {}
 
@@ -40,10 +42,12 @@ export class NativeTrackAdapter implements PlayerAdapter {
       capture: true,
       signal: this.listeners.signal,
     });
+    this.stopControls = watchNativeControls(this.media, events.onControlsLift);
   }
 
   stop(): void {
     this.listeners.abort();
+    this.stopControls();
     for (const [track, mode] of this.siteModes) track.mode = mode;
     this.siteModes.clear();
   }

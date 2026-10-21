@@ -1,4 +1,5 @@
 import type { PlayerAdapter, PlayerEvents } from '../session/player-adapter';
+import { watchNativeControls } from './native-controls';
 import type { CaptionStatus } from '../subtitles/caption-status';
 import type { Cue } from '../subtitles/cue';
 import { SubtitleTrack } from '../subtitles/subtitle-track';
@@ -10,6 +11,7 @@ export class FileTrackAdapter implements PlayerAdapter {
   private shownTrack: SubtitleTrack;
   private currentDelayMs = 0;
   private onCaptionsChange: () => void = () => undefined;
+  private stopControls: () => void = () => undefined;
 
   constructor(
     private readonly media: HTMLVideoElement,
@@ -28,10 +30,12 @@ export class FileTrackAdapter implements PlayerAdapter {
 
   start(events: PlayerEvents): void {
     this.onCaptionsChange = events.onCaptionsChange;
+    this.stopControls = watchNativeControls(this.media, events.onControlsLift);
   }
 
   stop(): void {
     this.onCaptionsChange = () => undefined;
+    this.stopControls();
     for (const [track, mode] of this.siteModes) track.mode = mode;
     this.siteModes.clear();
   }
