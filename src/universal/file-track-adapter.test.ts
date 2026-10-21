@@ -21,7 +21,7 @@ function fakeVideo(tracks: FakeTrack[] = []): HTMLVideoElement {
 function startedAdapter(tracks: FakeTrack[] = []) {
   const adapter = new FileTrackAdapter(fakeVideo(tracks), FILE_CUES);
   const onCaptionsChange = vi.fn();
-  adapter.start({ onCaptionsChange, onControlsLift: vi.fn() });
+  adapter.start({ onCaptionsChange, onControlsLift: vi.fn(), onFailure: vi.fn() });
   return { adapter, onCaptionsChange };
 }
 

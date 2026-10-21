@@ -1,3 +1,4 @@
+import { logger } from '../logger';
 import type { DelayCommand } from '../overlay/study-strip';
 import {
   type OverlayNotice,
@@ -13,6 +14,7 @@ import type { PortugueseTranslation } from '../translation/portuguese-translatio
 import type { PlayerAdapter } from './player-adapter';
 
 const NOTICE_DELAY_S = 2;
+const MISSING_AFTER_S = 10;
 const DELAY_STEP_MS = 100;
 const NO_CUES: readonly Cue[] = Object.freeze([]);
 const STUDY_STATUSES = new Set<CaptionStatus>(['full-track', 'screen']);
@@ -23,6 +25,9 @@ const NOTICES: Partial<Record<CaptionStatus, OverlayNotice>> = {
 };
 
 type PendingNotice = { key: string; notice: OverlayNotice; sinceS: number };
+type Waiting = { key: string; sinceS: number; waitedS: number };
+
+export type SessionProblem = 'stopped' | 'captions-missing';
 
 export class SubtitleSession {
   private readonly overlay: SubtitleOverlay;
@@ -34,18 +39,24 @@ export class SubtitleSession {
   private pendingNotice: PendingNotice | null = null;
   private shownNoticeKey: string | null = null;
   private shownTranslationState: TranslationState | null = null;
+  private waiting: Waiting | null = null;
+  private failed = false;
+  private stopped = false;
 
   constructor(
     container: Element,
     private readonly adapter: PlayerAdapter,
     private readonly translation: PortugueseTranslation,
     private readonly preferences: StudyPreferenceStore,
+    private readonly onFailure: () => void = () => undefined,
   ) {
     this.overlay = new SubtitleOverlay(
       container,
       (command) => {
-        if (command === 'earlier' || command === 'later') this.shiftDelay(command);
-        else this.handleCommand(command);
+        this.guarded(() => {
+          if (command === 'earlier' || command === 'later') this.shiftDelay(command);
+          else this.handleCommand(command);
+        }, undefined);
       },
       preferences.current.placement,
       (placement) => {
@@ -54,22 +65,83 @@ export class SubtitleSession {
     );
     this.overlay.setKeys(preferences.current.keys);
     this.overlay.setCaptionDelay(adapter.shiftDelay ? (adapter.delayMs ?? 0) : null);
-    adapter.start({
-      onCaptionsChange: this.render,
-      onControlsLift: (liftPx) => {
-        this.overlay.setControlsLift(liftPx);
-      },
-    });
+    this.guarded(() => {
+      adapter.start({
+        onCaptionsChange: this.render,
+        onControlsLift: (liftPx) => {
+          this.guarded(() => {
+            this.overlay.setControlsLift(liftPx);
+          }, undefined);
+        },
+        onFailure: this.fail,
+      });
 
-    const options = { capture: true, signal: this.listeners.signal };
-    adapter.player.addEventListener('playing', this.play, options);
-    for (const type of ['pause', 'seeked', 'emptied']) {
-      adapter.player.addEventListener(type, this.render, options);
-    }
-    this.play();
+      const options = { capture: true, signal: this.listeners.signal };
+      adapter.player.addEventListener('playing', this.play, options);
+      for (const type of ['pause', 'seeked', 'emptied']) {
+        adapter.player.addEventListener(type, this.render, options);
+      }
+      this.play();
+    }, undefined);
   }
 
   readonly render = (): void => {
+    this.guarded(() => {
+      this.draw();
+    }, undefined);
+  };
+
+  problem(): SessionProblem | null {
+    if (this.failed) return 'stopped';
+    return (this.waiting?.waitedS ?? 0) >= MISSING_AFTER_S ? 'captions-missing' : null;
+  }
+
+  setKeys(keys: StudyKeys): void {
+    this.overlay.setKeys(keys);
+  }
+
+  handleCommand(command: StudyCommand): boolean {
+    return this.guarded(() => {
+      if (!this.controls || this.adapter.isShowingAd()) return false;
+      this.controls.handle(command);
+      return true;
+    }, false);
+  }
+
+  stop(): void {
+    if (this.stopped) return;
+    this.stopped = true;
+    this.listeners.abort();
+    this.controls?.stop();
+    cancelAnimationFrame(this.frame);
+    this.adapter.stop();
+    this.overlay.hideNotice();
+  }
+
+  private readonly fail = (error: unknown): void => {
+    if (this.failed) return;
+    this.failed = true;
+    logger.error('The subtitle session stepped aside after an error', error);
+    this.overlay.remove();
+    try {
+      this.stop();
+    } catch (cleanupError) {
+      logger.error('Could not give the player everything back', cleanupError);
+    }
+    this.onFailure();
+  };
+
+  private guarded<T>(run: () => T, fallback: T): T {
+    if (this.failed) return fallback;
+    try {
+      return run();
+    } catch (error) {
+      this.fail(error);
+      return fallback;
+    }
+  }
+
+  private draw(): void {
     const video = this.adapter.video();
     const timeS = video?.currentTime ?? 0;
     const isAd = this.adapter.isShowingAd();
@@ -103,25 +175,10 @@ export class SubtitleSession {
     this.overlay.showCues(english, english.length > 0 ? portuguese : NO_CUES, timeMs);
     if (english.length > 0) this.followTranslationState(official ? null : this.translation.state());
     this.adapter.hideSiteCaptions(status === 'full-track' || status === 'screen');
-    if (video && !video.paused) this.updateNotice(status, timeS);
-  };
-
-  setKeys(keys: StudyKeys): void {
-    this.overlay.setKeys(keys);
-  }
-
-  handleCommand(command: StudyCommand): boolean {
-    if (!this.controls || this.adapter.isShowingAd()) return false;
-    this.controls.handle(command);
-    return true;
-  }
-
-  stop(): void {
-    this.listeners.abort();
-    this.controls?.stop();
-    cancelAnimationFrame(this.frame);
-    this.adapter.stop();
-    this.overlay.hideNotice();
+    if (video && !video.paused) {
+      this.followWaiting(status, timeS);
+      this.updateNotice(status, timeS);
+    }
   }
 
   private shiftDelay(command: DelayCommand): void {
@@ -176,6 +233,16 @@ export class SubtitleSession {
     };
     tick();
   };
+
+  private followWaiting(status: CaptionStatus, timeS: number): void {
+    const key = this.adapter.videoKey();
+    if (status !== 'waiting' || !key) {
+      this.waiting = null;
+      return;
+    }
+    if (this.waiting?.key !== key) this.waiting = { key, sinceS: timeS, waitedS: 0 };
+    this.waiting.waitedS = Math.abs(timeS - this.waiting.sinceS);
+  }
 
   private updateNotice(status: CaptionStatus, timeS: number): void {
     const videoKey = this.adapter.videoKey();

@@ -16,6 +16,7 @@ describe('ScreenCaptionAdapter', () => {
   let document: Document;
   let adapter: ScreenCaptionAdapter;
   let onCaptionsChange: ReturnType<typeof vi.fn<() => void>>;
+  let onFailure: ReturnType<typeof vi.fn<(error: unknown) => void>>;
 
   beforeEach(() => {
     const { window } = new JSDOM(PAGE);
@@ -25,7 +26,8 @@ describe('ScreenCaptionAdapter', () => {
     if (!video) throw new Error('Missing video');
     adapter = new ScreenCaptionAdapter(video, SELECTOR);
     onCaptionsChange = vi.fn<() => void>();
-    adapter.start({ onCaptionsChange, onControlsLift: vi.fn() });
+    onFailure = vi.fn<(error: unknown) => void>();
+    adapter.start({ onCaptionsChange, onControlsLift: vi.fn(), onFailure });
   });
 
   afterEach(() => {
@@ -105,5 +107,26 @@ describe('ScreenCaptionAdapter', () => {
     showLines('Too late');
     await settle();
     expect(texts()).toEqual([]);
+  });
+
+  it('throws on start when the stored selector is not valid any more', () => {
+    const video = document.querySelector('video');
+    if (!video) throw new Error('Missing video');
+    const broken = new ScreenCaptionAdapter(video, 'div.fp-captions span[');
+
+    expect(() => {
+      broken.start({ onCaptionsChange, onControlsLift: vi.fn(), onFailure });
+    }).toThrow();
+  });
+
+  it('hands an error while reading the page to the session', async () => {
+    const error = new Error('Page changed under us');
+    vi.spyOn(document, 'querySelectorAll').mockImplementation(() => {
+      throw error;
+    });
+    showLines('Hello');
+    await Promise.resolve();
+
+    expect(onFailure).toHaveBeenCalledWith(error);
   });
 });

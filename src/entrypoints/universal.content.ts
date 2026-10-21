@@ -16,6 +16,8 @@ import {
   LOAD_FILE,
   PICK_CAPTION,
   SITE_DEACTIVATED,
+  SITE_PROBLEM,
+  type SiteProblem,
   readSiteMessage,
 } from '../universal/site-message';
 import { readSiteRule, saveSiteRule, type SiteRule } from '../universal/site-rules';
@@ -43,6 +45,7 @@ export default defineContentScript({
     let rule: SiteRule | null = null;
     let cover: ResizeObserver | undefined;
     let fontLoaded = false;
+    let stoppedByError = false;
     let keys = DEFAULT_KEYS;
     const translation = new PortugueseTranslation(() => session?.render());
     const translatorApi = inFrame
@@ -68,7 +71,7 @@ export default defineContentScript({
     }, ctx.signal);
 
     const startSession = () => {
-      if (!mounted) return;
+      if (!mounted || stoppedByError) return;
       sessionBox = document.createElement('div');
       mounted.container.append(sessionBox);
       const { video } = mounted;
@@ -81,6 +84,9 @@ export default defineContentScript({
             : new NativeTrackAdapter(video),
         translation,
         preferences,
+        () => {
+          stoppedByError = true;
+        },
       );
     };
     const stopSession = () => {
@@ -101,7 +107,7 @@ export default defineContentScript({
       fileCues = await readSubtitleFile(file, 'en');
     };
     const openFileLoader = () => {
-      if (!mounted || picker || loader) return;
+      if (!mounted || picker || loader || stoppedByError) return;
       stopSession();
       loader = new FileLoader(mounted.container, mounted.video, loadFile, () => {
         loader = undefined;
@@ -109,7 +115,7 @@ export default defineContentScript({
       });
     };
     const pickCaption = () => {
-      if (!mounted || picker || loader) return;
+      if (!mounted || picker || loader || stoppedByError) return;
       stopSession();
       picker = new CaptionPicker(mounted.container, mounted.video, learn, () => {
         picker = undefined;
@@ -117,13 +123,25 @@ export default defineContentScript({
       });
     };
 
+    const siteProblem = (): SiteProblem | null => {
+      if (stoppedByError) return 'stopped';
+      const waitingForRule = rule !== null && fileCues === null;
+      return waitingForRule && session?.problem() === 'captions-missing'
+        ? 'learned-caption-missing'
+        : null;
+    };
     const answerPopup = (
       message: unknown,
       _sender: unknown,
-      sendResponse: (response: { received: boolean }) => void,
+      sendResponse: (response: { received: boolean } | { problem: SiteProblem }) => void,
     ) => {
       const type = readSiteMessage(message);
       if (type === null) return;
+      if (type === SITE_PROBLEM.type) {
+        const problem = siteProblem();
+        if (problem) sendResponse({ problem });
+        return;
+      }
       if (type === SITE_DEACTIVATED.type) ctx.abort();
       if (type === PICK_CAPTION.type) pickCaption();
       if (type === LOAD_FILE.type) openFileLoader();

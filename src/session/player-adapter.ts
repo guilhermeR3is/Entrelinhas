@@ -5,6 +5,7 @@ import type { SubtitleTrack } from '../subtitles/subtitle-track';
 export type PlayerEvents = {
   onCaptionsChange: () => void;
   onControlsLift: (liftPx: number) => void;
+  onFailure: (error: unknown) => void;
 };
 
 export interface PlayerAdapter {

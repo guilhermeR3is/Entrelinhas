@@ -97,6 +97,7 @@ export class SubtitleOverlay {
   private drag: BoxDrag | null = null;
   private clickEndsDrag = false;
   private fit = 1;
+  private readonly resizeObserver: ResizeObserver;
 
   constructor(
     container: Element,
@@ -136,12 +137,20 @@ export class SubtitleOverlay {
     this.frame = this.element('div', 'frame', this.box, this.status, this.announcer);
     container.append(this.frame);
     this.listenForMoves(this.strip.handle);
-    const resizeObserver = new ResizeObserver((entries) => {
+    this.resizeObserver = new ResizeObserver((entries) => {
       if (entries.some((entry) => entry.target === this.frame)) this.fitLine();
       this.place();
     });
-    resizeObserver.observe(this.frame);
-    resizeObserver.observe(this.box);
+    this.resizeObserver.observe(this.frame);
+    this.resizeObserver.observe(this.box);
+  }
+
+  remove(): void {
+    this.resizeObserver.disconnect();
+    clearTimeout(this.noticeTimer);
+    clearTimeout(this.translationStateTimer);
+    clearTimeout(this.stripFlashTimer);
+    this.frame.remove();
   }
 
   setControlsLift(liftPx: number): void {

@@ -163,7 +163,7 @@ describe('NativeTrackAdapter as the player', () => {
     const video = fakeVideo([]);
     const adapter = new NativeTrackAdapter(video);
     const onCaptionsChange = vi.fn();
-    adapter.start({ onCaptionsChange, onControlsLift: vi.fn() });
+    adapter.start({ onCaptionsChange, onControlsLift: vi.fn(), onFailure: vi.fn() });
     video.dispatchEvent(new Event('load'));
     expect(onCaptionsChange).toHaveBeenCalledTimes(1);
 

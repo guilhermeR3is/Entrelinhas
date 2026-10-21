@@ -50,6 +50,31 @@ async function sendToTestPage(context: BrowserContext, message: object): Promise
   }, message);
 }
 
+type PageAnswer = { reply: unknown } | { error: string };
+
+async function askTestPage(context: BrowserContext, message: object): Promise<PageAnswer> {
+  const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  return worker.evaluate(async (sent) => {
+    const tabs = (
+      globalThis as unknown as {
+        chrome: {
+          tabs: {
+            query: (filter: object) => Promise<{ id?: number }[]>;
+            sendMessage: (tabId: number, message: unknown) => Promise<unknown>;
+          };
+        };
+      }
+    ).chrome.tabs;
+    const [tab] = await tabs.query({ url: 'http://localhost/*' });
+    if (tab?.id === undefined) throw new Error('Test page tab not found');
+    try {
+      return { reply: await tabs.sendMessage(tab.id, sent) };
+    } catch (error) {
+      return { error: String(error) };
+    }
+  }, message);
+}
+
 test.beforeEach(async ({ context }) => {
   await expect
     .poll(async () =>
@@ -511,5 +536,69 @@ test.describe('a player inside a frame', () => {
 
     await expect(frame.locator(OVERLAY)).toHaveCount(0);
     expect(await trackModes(frame)).toEqual(['showing', 'disabled']);
+  });
+});
+
+test.describe('when the site changes under the extension', () => {
+  const ASK = { type: 'projeto-bilingue:site-problem' };
+
+  async function storeRule(context: BrowserContext, captionSelector: string): Promise<void> {
+    const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+    await worker.evaluate(
+      (selector) =>
+        (
+          globalThis as unknown as {
+            chrome: { storage: { local: { set: (items: object) => Promise<void> } } };
+          }
+        ).chrome.storage.local.set({
+          siteRules: { 'localhost:4321': { captionSelector: selector } },
+        }),
+      captionSelector,
+    );
+  }
+
+  test('says nothing to the popup while everything works', async ({ page, context }) => {
+    await page.goto('/native-tracks.html');
+    await seek(page, 0.75);
+    await expect(page.locator(ENGLISH)).toBeVisible();
+
+    expect(await askTestPage(context, ASK)).toEqual({ reply: undefined });
+  });
+
+  test('steps aside after an error, gives the site its caption and keys back and tells the popup', async ({
+    page,
+    context,
+  }) => {
+    await storeRule(context, 'div.fp-captions span[');
+    await page.goto('/screen-captions.html');
+    await expect(page.locator(OVERLAY)).toBeAttached();
+    await seek(page, 1);
+
+    await expect(page.locator('.fp-line')).toHaveText('Hello, this is the test page.');
+    await expect(page.locator('.fp-line')).toHaveCSS('visibility', 'visible');
+    await expect(page.locator(`${OVERLAY} .frame`)).toHaveCount(0);
+    await page.locator('h1').click();
+    await page.keyboard.press('z');
+    expect(await page.evaluate(() => document.querySelector('video')?.playbackRate)).toBe(1);
+    expect(await askTestPage(context, ASK)).toEqual({ reply: { problem: 'stopped' } });
+  });
+
+  test('tells the popup when the learned caption does not show up for 10 s', async ({
+    page,
+    context,
+  }) => {
+    await storeRule(context, 'div.old-captions span.old-line');
+    await page.goto('/screen-captions.html');
+    await expect(page.locator(OVERLAY)).toBeAttached();
+    await page.evaluate(() => document.querySelector('video')?.play());
+    expect(await askTestPage(context, ASK)).toEqual({ reply: undefined });
+
+    await seek(page, 11);
+    await expect
+      .poll(() => askTestPage(context, ASK))
+      .toEqual({
+        reply: { problem: 'learned-caption-missing' },
+      });
+    await expect(page.locator('.fp-line')).toHaveCSS('visibility', 'visible');
   });
 });

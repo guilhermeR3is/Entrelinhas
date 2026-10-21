@@ -7,7 +7,11 @@ const SCREEN_LANGUAGE = 'en';
 
 export class ScreenCaptionAdapter implements PlayerAdapter {
   private readonly observer = new MutationObserver(() => {
-    this.readScreen();
+    try {
+      this.readScreen();
+    } catch (error) {
+      this.onFailure(error);
+    }
   });
   private readonly hidden = new Set<HTMLElement>();
   private scope: Node;
@@ -16,6 +20,7 @@ export class ScreenCaptionAdapter implements PlayerAdapter {
   private seenCaption = false;
   private nextCueId = 0;
   private onCaptionsChange: () => void = () => undefined;
+  private onFailure: (error: unknown) => void = () => undefined;
 
   constructor(
     private readonly media: HTMLVideoElement,
@@ -30,6 +35,7 @@ export class ScreenCaptionAdapter implements PlayerAdapter {
 
   start(events: PlayerEvents): void {
     this.onCaptionsChange = events.onCaptionsChange;
+    this.onFailure = events.onFailure;
     this.observe(this.scope);
     this.readScreen();
   }

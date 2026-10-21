@@ -11,6 +11,7 @@ import { findTranslatorApi } from '../translation/translator-api';
 import { SubtitleSession } from '../session/subtitle-session';
 import { YouTubeCaptions } from '../youtube/youtube-captions';
 import { YouTubePlayerAdapter } from '../youtube/youtube-player-adapter';
+import { SITE_PROBLEM, type SiteProblem, readSiteMessage } from '../universal/site-message';
 
 const PLAYER_SELECTOR = '#movie_player';
 
@@ -22,6 +23,7 @@ export default defineContentScript({
     const captions = new YouTubeCaptions(window);
     let session: SubtitleSession | undefined;
     let fontLoaded = false;
+    let stoppedByError = false;
     let keys = DEFAULT_KEYS;
     const translation = new PortugueseTranslation(() => session?.render());
     const translatorApi =
@@ -38,6 +40,19 @@ export default defineContentScript({
       captions.receive(event);
       session?.render();
     });
+    const answerPopup = (
+      message: unknown,
+      _sender: unknown,
+      sendResponse: (response: { problem: SiteProblem }) => void,
+    ) => {
+      if (readSiteMessage(message) === SITE_PROBLEM.type && stoppedByError) {
+        sendResponse({ problem: 'stopped' });
+      }
+    };
+    browser.runtime.onMessage.addListener(answerPopup);
+    ctx.onInvalidated(() => {
+      browser.runtime.onMessage.removeListener(answerPopup);
+    });
 
     const preferences = await StudyPreferenceStore.load(browser.storage.local);
     keys = preferences.current.keys;
@@ -51,7 +66,7 @@ export default defineContentScript({
       anchor: PLAYER_SELECTOR,
       onMount: (container) => {
         const player = document.querySelector(PLAYER_SELECTOR);
-        if (!player) return;
+        if (!player || stoppedByError) return;
         if (!fontLoaded) loadSubtitleFont(document.fonts);
         fontLoaded = true;
         session = new SubtitleSession(
@@ -59,6 +74,9 @@ export default defineContentScript({
           new YouTubePlayerAdapter(player, captions),
           translation,
           preferences,
+          () => {
+            stoppedByError = true;
+          },
         );
       },
       onRemove: () => {

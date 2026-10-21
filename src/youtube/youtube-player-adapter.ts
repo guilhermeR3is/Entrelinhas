@@ -17,6 +17,7 @@ export class YouTubePlayerAdapter implements PlayerAdapter {
   private siteCaptions: HTMLElement | null = null;
   private screenObserver: MutationObserver | undefined;
   private onCaptionsChange: () => void = () => undefined;
+  private onFailure: (error: unknown) => void = () => undefined;
 
   constructor(
     readonly player: Element,
@@ -25,6 +26,7 @@ export class YouTubePlayerAdapter implements PlayerAdapter {
 
   start(events: PlayerEvents): void {
     this.onCaptionsChange = events.onCaptionsChange;
+    this.onFailure = events.onFailure;
     this.controlsObserver = watchPlayerControls(this.player, events.onControlsLift);
     const page = this.player.ownerDocument.defaultView;
     if (page) this.speedIntent = watchSpeedIntent(page, this.listeners.signal);
@@ -84,8 +86,12 @@ export class YouTubePlayerAdapter implements PlayerAdapter {
     this.siteCaptions = siteCaptions;
     this.screenObserver = siteCaptions
       ? observeScreenCaptions(siteCaptions, (text) => {
-          this.captions.showScreenText(text);
-          this.onCaptionsChange();
+          try {
+            this.captions.showScreenText(text);
+            this.onCaptionsChange();
+          } catch (error) {
+            this.onFailure(error);
+          }
         })
       : undefined;
     return siteCaptions;

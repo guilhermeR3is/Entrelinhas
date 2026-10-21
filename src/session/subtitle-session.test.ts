@@ -18,14 +18,17 @@ class FakePlayer implements PlayerAdapter {
   siteCaptionsHidden: boolean | null = null;
   events: PlayerEvents | null = null;
   stopped = false;
+  breaks: 'start' | 'status' | 'stop' | null = null;
 
   constructor(readonly player: Element) {}
 
   start(events: PlayerEvents): void {
+    if (this.breaks === 'start') throw new Error('No player here');
     this.events = events;
   }
   stop(): void {
     this.stopped = true;
+    if (this.breaks === 'stop') throw new Error('Player gone');
   }
   video(): HTMLVideoElement | null {
     return this.player.querySelector('video');
@@ -40,6 +43,7 @@ class FakePlayer implements PlayerAdapter {
     return false;
   }
   status(): CaptionStatus {
+    if (this.breaks === 'status') throw new Error('Site changed');
     return this.currentStatus;
   }
   activeCues(timeMs: number) {
@@ -60,6 +64,7 @@ describe('SubtitleSession with any player adapter', () => {
   let document: Document;
   let adapter: FakePlayer;
   let session: SubtitleSession;
+  let preferences: StudyPreferenceStore;
   const playback = { currentTime: 0, paused: true };
 
   beforeEach(async () => {
@@ -70,6 +75,7 @@ describe('SubtitleSession with any player adapter', () => {
       'ResizeObserver',
       class {
         observe = vi.fn();
+        disconnect = vi.fn();
       },
     );
     vi.stubGlobal('AbortController', window.AbortController);
@@ -85,7 +91,7 @@ describe('SubtitleSession with any player adapter', () => {
       set: () => Promise.resolve(),
       onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
     };
-    const preferences = await StudyPreferenceStore.load(storage as unknown as PreferenceStorage);
+    preferences = await StudyPreferenceStore.load(storage as unknown as PreferenceStorage);
     adapter = new FakePlayer(find('#player'));
     session = new SubtitleSession(
       find('#overlay'),
@@ -150,6 +156,117 @@ describe('SubtitleSession with any player adapter', () => {
     session.stop();
     expect(adapter.stopped).toBe(true);
   });
+
+  describe('when something breaks', () => {
+    const onFailure = vi.fn();
+
+    function startOver(): void {
+      session.stop();
+      find('#overlay').replaceChildren();
+      onFailure.mockClear();
+      adapter = new FakePlayer(find('#player'));
+    }
+
+    function newSession(): SubtitleSession {
+      return new SubtitleSession(
+        find('#overlay'),
+        adapter,
+        new PortugueseTranslation(() => undefined),
+        preferences,
+        onFailure,
+      );
+    }
+
+    beforeEach(() => {
+      startOver();
+      session = newSession();
+    });
+
+    it('steps aside after an error while drawing and gives the player back', () => {
+      adapter.breaks = 'status';
+      session.render();
+
+      expect(find('#overlay').children).toHaveLength(0);
+      expect(adapter.stopped).toBe(true);
+      expect(onFailure).toHaveBeenCalledOnce();
+      expect(session.problem()).toBe('stopped');
+      expect(session.handleCommand('slower')).toBe(false);
+    });
+
+    it('stays out of the way after the error', () => {
+      adapter.breaks = 'status';
+      session.render();
+      adapter.breaks = null;
+      session.render();
+
+      expect(find('#overlay').children).toHaveLength(0);
+      expect(adapter.siteCaptionsHidden).toBe(true);
+      expect(onFailure).toHaveBeenCalledOnce();
+    });
+
+    it('steps aside when the player cannot even start', () => {
+      startOver();
+      adapter.breaks = 'start';
+      session = newSession();
+
+      expect(session.problem()).toBe('stopped');
+      expect(onFailure).toHaveBeenCalledOnce();
+      expect(find('#overlay').children).toHaveLength(0);
+    });
+
+    it('steps aside when the adapter reports an error of its own', () => {
+      adapter.events?.onFailure(new Error('Observer broke'));
+
+      expect(session.problem()).toBe('stopped');
+      expect(adapter.stopped).toBe(true);
+    });
+
+    it('still reports the problem when giving the player back fails too', () => {
+      adapter.breaks = 'stop';
+      adapter.events?.onFailure(new Error('Observer broke'));
+
+      expect(session.problem()).toBe('stopped');
+      expect(onFailure).toHaveBeenCalledOnce();
+    });
+
+    it('stops only once when the page later removes the player', () => {
+      adapter.breaks = 'status';
+      session.render();
+      adapter.stopped = false;
+      session.stop();
+
+      expect(adapter.stopped).toBe(false);
+    });
+
+    it('reports missing captions after 10 s of playing without any', () => {
+      adapter.currentStatus = 'waiting';
+      playback.paused = false;
+      for (playback.currentTime = 0; playback.currentTime < 9.75; playback.currentTime += 0.5) {
+        session.render();
+      }
+      expect(session.problem()).toBeNull();
+
+      playback.currentTime = 10.25;
+      session.render();
+      expect(session.problem()).toBe('captions-missing');
+
+      adapter.currentStatus = 'full-track';
+      session.render();
+      expect(session.problem()).toBeNull();
+    });
+
+    it('does not count the time the video stays paused', () => {
+      adapter.currentStatus = 'waiting';
+      playback.paused = false;
+      playback.currentTime = 0;
+      session.render();
+      playback.paused = true;
+      playback.currentTime = 30;
+      session.render();
+
+      expect(session.problem()).toBeNull();
+    });
+  });
 });
 
 describe('SubtitleSession with captions that can be shifted', () => {
@@ -159,6 +276,7 @@ describe('SubtitleSession with captions that can be shifted', () => {
       'ResizeObserver',
       class {
         observe = vi.fn();
+        disconnect = vi.fn();
       },
     );
     vi.stubGlobal('AbortController', window.AbortController);
