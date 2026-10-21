@@ -1,5 +1,6 @@
 import type { PlayerAdapter, PlayerEvents } from '../session/player-adapter';
 import { watchNativeControls } from './native-controls';
+import { SpeedChoice } from './speed-choice';
 import type { CaptionStatus } from '../subtitles/caption-status';
 import type { Cue } from '../subtitles/cue';
 import { isEnglish, isPortuguese } from '../subtitles/language';
@@ -30,6 +31,7 @@ export class NativeTrackAdapter implements PlayerAdapter {
   private english: ReadTrack | null = null;
   private portuguese: ReadTrack | null = null;
   private stopControls: () => void = () => undefined;
+  private speedChoice: SpeedChoice | undefined;
 
   constructor(private readonly media: HTMLVideoElement) {}
 
@@ -43,11 +45,13 @@ export class NativeTrackAdapter implements PlayerAdapter {
       signal: this.listeners.signal,
     });
     this.stopControls = watchNativeControls(this.media, events.onControlsLift);
+    this.speedChoice = new SpeedChoice(this.media, navigator.userActivation);
   }
 
   stop(): void {
     this.listeners.abort();
     this.stopControls();
+    this.speedChoice?.stop();
     for (const [track, mode] of this.siteModes) track.mode = mode;
     this.siteModes.clear();
   }
@@ -65,7 +69,7 @@ export class NativeTrackAdapter implements PlayerAdapter {
   }
 
   personChangedSpeed(): boolean {
-    return false;
+    return this.speedChoice?.personChangedSpeed() ?? false;
   }
 
   hideSiteCaptions(): void {

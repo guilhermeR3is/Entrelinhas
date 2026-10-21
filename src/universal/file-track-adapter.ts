@@ -1,5 +1,6 @@
 import type { PlayerAdapter, PlayerEvents } from '../session/player-adapter';
 import { watchNativeControls } from './native-controls';
+import { SpeedChoice } from './speed-choice';
 import type { CaptionStatus } from '../subtitles/caption-status';
 import type { Cue } from '../subtitles/cue';
 import { SubtitleTrack } from '../subtitles/subtitle-track';
@@ -12,6 +13,7 @@ export class FileTrackAdapter implements PlayerAdapter {
   private currentDelayMs = 0;
   private onCaptionsChange: () => void = () => undefined;
   private stopControls: () => void = () => undefined;
+  private speedChoice: SpeedChoice | undefined;
 
   constructor(
     private readonly media: HTMLVideoElement,
@@ -31,11 +33,13 @@ export class FileTrackAdapter implements PlayerAdapter {
   start(events: PlayerEvents): void {
     this.onCaptionsChange = events.onCaptionsChange;
     this.stopControls = watchNativeControls(this.media, events.onControlsLift);
+    this.speedChoice = new SpeedChoice(this.media, navigator.userActivation);
   }
 
   stop(): void {
     this.onCaptionsChange = () => undefined;
     this.stopControls();
+    this.speedChoice?.stop();
     for (const [track, mode] of this.siteModes) track.mode = mode;
     this.siteModes.clear();
   }
@@ -68,7 +72,7 @@ export class FileTrackAdapter implements PlayerAdapter {
   }
 
   personChangedSpeed(): boolean {
-    return false;
+    return this.speedChoice?.personChangedSpeed() ?? false;
   }
 
   status(): CaptionStatus {

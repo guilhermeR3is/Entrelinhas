@@ -788,3 +788,40 @@ test.describe('the native control bar of the video', () => {
     await expect.poll(() => gapAboveBottom(page), { timeout: 4000 }).toBe(11);
   });
 });
+
+test.describe('a speed chosen in the player of the site', () => {
+  const SPEED = `${OVERLAY} .speed`;
+
+  async function rate(page: Page): Promise<number | undefined> {
+    return page.evaluate(() => document.querySelector('video')?.playbackRate);
+  }
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/speed-menu.html');
+    await expect(page.locator(OVERLAY)).toBeAttached();
+    await seek(page, 0.75);
+    await expect(page.locator(ENGLISH)).toBeVisible();
+    await page.locator('h1').click();
+    await page.keyboard.press('z');
+    await expect.poll(() => rate(page)).toBe(0.95);
+  });
+
+  test('keeps the speed the person picks in the menu of the player', async ({ page }) => {
+    await page.getByRole('button', { name: 'Speed 1.5x' }).click();
+
+    await expect(page.locator(SPEED)).toHaveText('1,5x');
+    expect(await rate(page)).toBe(1.5);
+  });
+
+  test('brings its speed back when the site resets it while loading the next video', async ({
+    page,
+  }) => {
+    await page.getByRole('button', { name: 'Next lesson' }).click();
+
+    await expect
+      .poll(() => page.evaluate(() => document.querySelector('video')?.currentSrc))
+      .toContain('lesson=2');
+    await expect.poll(() => rate(page)).toBe(0.95);
+    await expect(page.locator(SPEED)).toHaveText('0,95x');
+  });
+});

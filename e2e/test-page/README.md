@@ -32,3 +32,7 @@ servidor de teste só escuta em `::1`, e `127.0.0.1` é recusado).
 `foreign-player.html` traz de `player.localhost`, outra origem, o player `english-track.html` (só a trilha
 em inglês, para o português ter que vir da tradução feita pela página de cima), como um curso que usa o
 player de outra empresa. Só a build de teste tem a permissão de `player.localhost`.
+
+`speed-menu.html` tem um player sem a barra do Chrome, com botões próprios: "Speed 1.5x" muda a velocidade
+como o menu de um player de curso, e "Next lesson" troca o vídeo e volta a velocidade para 1x ao carregar,
+como alguns sites fazem. Serve para conferir quando a extensão aceita a velocidade escolhida no player.

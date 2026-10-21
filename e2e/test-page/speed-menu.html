@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Player with its own speed menu</title>
+    <style>
+      body {
+        margin: 2rem;
+        font-family: system-ui, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>A lesson whose player has its own speed menu</h1>
+    <video src="clock.webm" width="480" height="270" muted preload="auto">
+      <track kind="subtitles" src="subtitles.vtt" srclang="en" label="English" default />
+    </video>
+    <p>
+      <button type="button" id="faster">Speed 1.5x</button>
+      <button type="button" id="next">Next lesson</button>
+    </p>
+    <script>
+      const video = document.querySelector('video');
+      document.querySelector('#faster').addEventListener('click', () => {
+        video.playbackRate = 1.5;
+      });
+      document.querySelector('#next').addEventListener('click', () => {
+        video.addEventListener(
+          'loadstart',
+          () => {
+            video.playbackRate = 1;
+          },
+          { once: true },
+        );
+        video.src = 'clock.webm?lesson=2';
+      });
+    </script>
+  </body>
+</html>

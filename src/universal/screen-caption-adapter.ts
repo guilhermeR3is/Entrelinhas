@@ -2,6 +2,7 @@ import type { PlayerAdapter, PlayerEvents } from '../session/player-adapter';
 import type { CaptionStatus } from '../subtitles/caption-status';
 import type { Cue } from '../subtitles/cue';
 import { watchNativeControls } from './native-controls';
+import { SpeedChoice } from './speed-choice';
 
 const NO_CUES: readonly Cue[] = Object.freeze([]);
 const SCREEN_LANGUAGE = 'en';
@@ -23,6 +24,7 @@ export class ScreenCaptionAdapter implements PlayerAdapter {
   private onCaptionsChange: () => void = () => undefined;
   private onFailure: (error: unknown) => void = () => undefined;
   private stopControls: () => void = () => undefined;
+  private speedChoice: SpeedChoice | undefined;
 
   constructor(
     private readonly media: HTMLVideoElement,
@@ -39,6 +41,7 @@ export class ScreenCaptionAdapter implements PlayerAdapter {
     this.onCaptionsChange = events.onCaptionsChange;
     this.onFailure = events.onFailure;
     this.stopControls = watchNativeControls(this.media, events.onControlsLift);
+    this.speedChoice = new SpeedChoice(this.media, navigator.userActivation);
     this.observe(this.scope);
     this.readScreen();
   }
@@ -46,6 +49,7 @@ export class ScreenCaptionAdapter implements PlayerAdapter {
   stop(): void {
     this.observer.disconnect();
     this.stopControls();
+    this.speedChoice?.stop();
     for (const element of this.hidden) element.style.removeProperty('visibility');
     this.hidden.clear();
   }
@@ -63,7 +67,7 @@ export class ScreenCaptionAdapter implements PlayerAdapter {
   }
 
   personChangedSpeed(): boolean {
-    return false;
+    return this.speedChoice?.personChangedSpeed() ?? false;
   }
 
   status(): CaptionStatus {
