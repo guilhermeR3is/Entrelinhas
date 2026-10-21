@@ -5,7 +5,14 @@ import { browser } from 'wxt/browser';
 import { logger } from '../../logger';
 import { type TabStatus, tabStatusFromUrl } from '../../tab-status';
 import { choosePlayerFrame, measureFrames, type PlayerFrame } from '../../universal/player-frames';
-import { LOAD_FILE, PICK_CAPTION, SITE_DEACTIVATED } from '../../universal/site-message';
+import {
+  LOAD_FILE,
+  PICK_CAPTION,
+  SITE_DEACTIVATED,
+  SITE_PROBLEM,
+  type SiteProblem,
+  readSiteProblem,
+} from '../../universal/site-message';
 import { ACTION_LABELS, entryFor, thumbTabLetter, type EntryState } from './entry';
 
 type SiteState = Extract<EntryState, { origin: string }>;
@@ -131,9 +138,12 @@ async function readCurrentTab(): Promise<CurrentTab> {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     const { origins = [] } = await browser.permissions.getAll();
     const status = tabStatusFromUrl(tab?.url, origins);
-    const player = status.kind === 'enabled' ? await findPlayer(tab?.id, tab?.url) : null;
+    const [player, problem] = await Promise.all([
+      status.kind === 'enabled' ? findPlayer(tab?.id, tab?.url) : null,
+      status.kind === 'enabled' || status.kind === 'active' ? askForProblem(tab?.id) : null,
+    ]);
     return {
-      state: withPlayer(status, player, origins),
+      state: withProblem(withPlayer(status, player, origins), problem),
       tabId: tab?.id,
       url: tab?.url,
       player,
@@ -166,6 +176,28 @@ async function findPlayer(
     logger.error('Could not look for a player in the page', error);
     return null;
   }
+}
+
+async function askForProblem(tabId: number | undefined): Promise<SiteProblem | null> {
+  if (tabId === undefined) return null;
+  try {
+    return readSiteProblem(await browser.tabs.sendMessage(tabId, SITE_PROBLEM));
+  } catch (error) {
+    logger.error('No content script answered in the tab', error);
+    return null;
+  }
+}
+
+function withProblem(state: EntryState, problem: SiteProblem | null): EntryState {
+  if (problem === 'stopped' && 'site' in state) {
+    return 'origin' in state
+      ? { kind: 'stopped', site: state.site, origin: state.origin }
+      : { kind: 'stopped', site: state.site };
+  }
+  if (problem === 'learned-caption-missing' && state.kind === 'enabled') {
+    return { ...state, kind: 'caption-missing' };
+  }
+  return state;
 }
 
 function withPlayer(

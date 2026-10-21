@@ -90,6 +90,26 @@ export async function stubPage(page: Page, stub: PageStub): Promise<void> {
   }, stub);
 }
 
+export async function stubTabMessages(
+  page: Page,
+  replies: Record<string, unknown> = {},
+): Promise<void> {
+  await page.addInitScript((repliesByType: Record<string, unknown>) => {
+    const sent: unknown[] = [];
+    Object.assign(window, { sentToTabs: sent });
+    const tabs = (globalThis as unknown as { chrome: { tabs: object } }).chrome.tabs;
+    Object.defineProperty(tabs, 'sendMessage', {
+      value: (tabId: number, message: { type: string }) => {
+        sent.push([tabId, message]);
+        return Promise.resolve(repliesByType[message.type]);
+      },
+    });
+    window.close = () => {
+      document.documentElement.dataset.closed = 'true';
+    };
+  }, replies);
+}
+
 export const test = base.extend<{ context: BrowserContext; popupUrl: string; optionsUrl: string }>({
   context: async ({}, use) => {
     const context = await chromium.launchPersistentContext('', {

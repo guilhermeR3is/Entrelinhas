@@ -1,8 +1,21 @@
 import type { BrowserContext, Page } from '@playwright/test';
-import { expect, stubActiveTab, stubPage, stubPermissions, test } from './fixtures';
+import {
+  expect,
+  stubActiveTab,
+  stubPage,
+  stubPermissions,
+  stubTabMessages,
+  test,
+} from './fixtures';
+
+const ASK_PROBLEM = { type: 'projeto-bilingue:site-problem' };
 
 function permissionCalls(popup: Page): Promise<string[]> {
   return popup.evaluate(() => (window as unknown as { permissionCalls: string[] }).permissionCalls);
+}
+
+function sentToTabs(popup: Page): Promise<unknown[]> {
+  return popup.evaluate(() => (window as unknown as { sentToTabs: unknown[] }).sentToTabs);
 }
 
 test('reports a page without https as unsupported with the real tabs API', async ({
@@ -46,20 +59,7 @@ test('starts picking the caption in the tab and gets out of the way', async ({
   const popup = await context.newPage();
   await stubActiveTab(popup, { url: 'https://www.example.com/', id: 42 });
   await stubPermissions(popup, { granted: ['https://www.example.com/*'] });
-  await popup.addInitScript(() => {
-    const sent: unknown[] = [];
-    Object.assign(window, { sentToTabs: sent });
-    const tabs = (globalThis as unknown as { chrome: { tabs: object } }).chrome.tabs;
-    Object.defineProperty(tabs, 'sendMessage', {
-      value: (tabId: number, message: unknown) => {
-        sent.push([tabId, message]);
-        return Promise.resolve({ received: true });
-      },
-    });
-    window.close = () => {
-      document.documentElement.dataset.closed = 'true';
-    };
-  });
+  await stubTabMessages(popup);
   await popup.goto(popupUrl);
 
   await expect(popup.getByRole('button', { name: 'Escolher a legenda na tela' })).toBeVisible();
@@ -69,29 +69,17 @@ test('starts picking the caption in the tab and gets out of the way', async ({
   await popup.getByRole('button', { name: 'Escolher a legenda na tela' }).click();
 
   await expect(popup.locator('html')).toHaveAttribute('data-closed', 'true');
-  expect(
-    await popup.evaluate(() => (window as unknown as { sentToTabs: unknown[] }).sentToTabs),
-  ).toEqual([[42, { type: 'projeto-bilingue:pick-caption' }]]);
+  expect(await sentToTabs(popup)).toEqual([
+    [42, ASK_PROBLEM],
+    [42, { type: 'projeto-bilingue:pick-caption' }],
+  ]);
 });
 
 test('hands loading a subtitle file over to the tab', async ({ context, popupUrl }) => {
   const popup = await context.newPage();
   await stubActiveTab(popup, { url: 'https://www.example.com/', id: 42 });
   await stubPermissions(popup, { granted: ['https://www.example.com/*'] });
-  await popup.addInitScript(() => {
-    const sent: unknown[] = [];
-    Object.assign(window, { sentToTabs: sent });
-    const tabs = (globalThis as unknown as { chrome: { tabs: object } }).chrome.tabs;
-    Object.defineProperty(tabs, 'sendMessage', {
-      value: (tabId: number, message: unknown) => {
-        sent.push([tabId, message]);
-        return Promise.resolve({ received: true });
-      },
-    });
-    window.close = () => {
-      document.documentElement.dataset.closed = 'true';
-    };
-  });
+  await stubTabMessages(popup);
   await popup.goto(popupUrl);
 
   const links = popup.locator('.entry-link:not([hidden])');
@@ -99,9 +87,10 @@ test('hands loading a subtitle file over to the tab', async ({ context, popupUrl
   await popup.getByRole('button', { name: 'Carregar arquivo de legenda' }).click();
 
   await expect(popup.locator('html')).toHaveAttribute('data-closed', 'true');
-  expect(
-    await popup.evaluate(() => (window as unknown as { sentToTabs: unknown[] }).sentToTabs),
-  ).toEqual([[42, { type: 'projeto-bilingue:load-file' }]]);
+  expect(await sentToTabs(popup)).toEqual([
+    [42, ASK_PROBLEM],
+    [42, { type: 'projeto-bilingue:load-file' }],
+  ]);
 });
 
 test('lets the person try again after saying no to Chrome', async ({ context, popupUrl }) => {
@@ -323,4 +312,107 @@ test.describe('a site whose video plays in a player of another address', () => {
     ]);
     await expect(popup.getByRole('button', { name: 'Escolher a legenda na tela' })).toBeVisible();
   });
+});
+
+test.describe('a site where the extension ran into a problem', () => {
+  const SITE = 'https://www.example.com/*';
+
+  async function openPopup(
+    context: BrowserContext,
+    popupUrl: string,
+    { url, granted, problem }: { url: string; granted: string[]; problem: string },
+  ): Promise<Page> {
+    const popup = await context.newPage();
+    await stubActiveTab(popup, { url, id: 42 });
+    await stubPermissions(popup, { granted });
+    await stubPage(popup, {
+      frames: [{ src: 'https://player.vimeo.com/video/9', width: 854, height: 480 }],
+    });
+    await stubTabMessages(popup, { [ASK_PROBLEM.type]: { problem } });
+    await popup.goto(popupUrl);
+    return popup;
+  }
+
+  test('says it stopped, even before the player of another address, and reloads the page', async ({
+    context,
+    popupUrl,
+  }) => {
+    const popup = await openPopup(context, popupUrl, {
+      url: 'https://www.example.com/aula/3',
+      granted: [SITE],
+      problem: 'stopped',
+    });
+
+    await expect(popup.getByRole('status')).toContainText('parou aqui');
+    await expect(popup.getByRole('status')).toContainText(
+      'A legenda dupla parou por um erro. O vídeo continua normal.',
+    );
+    await expect(popup.locator('.thumb-tab')).toBeHidden();
+    await expect(popup.locator('.entry-link:visible')).toHaveText(['Desativar neste site']);
+    await popup.getByRole('button', { name: 'Recarregar a página' }).click();
+
+    await expect(popup.locator('html')).toHaveAttribute('data-closed', 'true');
+    expect(
+      await popup.evaluate(() => (window as unknown as { reloadedTabs: number[] }).reloadedTabs),
+    ).toEqual([42]);
+  });
+
+  test('has nothing to turn off when it stops on YouTube', async ({ context, popupUrl }) => {
+    const popup = await openPopup(context, popupUrl, {
+      url: 'https://www.youtube.com/watch?v=abc',
+      granted: [],
+      problem: 'stopped',
+    });
+
+    await expect(popup.getByRole('heading', { name: 'youtube.com' })).toBeVisible();
+    await expect(popup.getByRole('button', { name: 'Recarregar a página' })).toBeVisible();
+    await expect(popup.locator('.entry-link:visible')).toHaveCount(0);
+    await expect(popup.locator('.thumb-tab')).toBeHidden();
+  });
+
+  test('asks to pick the caption again when the learned one does not show up', async ({
+    context,
+    popupUrl,
+  }) => {
+    const popup = await openPopup(context, popupUrl, {
+      url: 'https://www.example.com/aula/3',
+      granted: [SITE, 'https://player.vimeo.com/*'],
+      problem: 'learned-caption-missing',
+    });
+
+    await expect(popup.getByRole('status')).toContainText(
+      'A legenda que você escolheu não apareceu neste vídeo. Se o site mudou, escolha de novo.',
+    );
+    await expect(popup.locator('.thumb-tab')).toHaveText('E');
+    await popup.getByRole('button', { name: 'Escolher a legenda na tela' }).click();
+
+    await expect(popup.locator('html')).toHaveAttribute('data-closed', 'true');
+    expect(await sentToTabs(popup)).toEqual([
+      [42, ASK_PROBLEM],
+      [42, { type: 'projeto-bilingue:pick-caption' }],
+    ]);
+  });
+
+  test('ignores a problem the page reports in a shape it does not know', async ({
+    context,
+    popupUrl,
+  }) => {
+    const popup = await openPopup(context, popupUrl, {
+      url: 'https://www.youtube.com/watch?v=abc',
+      granted: [],
+      problem: 'on-fire',
+    });
+
+    await expect(popup.getByRole('status')).toContainText('Ativa aqui.');
+  });
+});
+
+test('shows the usual state when no script in the tab answers', async ({ context, popupUrl }) => {
+  const popup = await context.newPage();
+  await stubActiveTab(popup, { url: 'https://www.example.com/', id: 987654 });
+  await stubPermissions(popup, { granted: ['https://www.example.com/*'] });
+  await popup.goto(popupUrl);
+
+  await expect(popup.getByRole('status')).toContainText('ativado por você');
+  await expect(popup.getByRole('status')).toContainText('Ativa aqui.');
 });

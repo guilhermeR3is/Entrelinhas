@@ -15,6 +15,9 @@ const ALL_STATES: EntryState[] = [
   { kind: 'available', site: 'example.com', origin: ORIGIN },
   { kind: 'enabled', site: 'example.com', origin: ORIGIN },
   { kind: 'denied', site: 'example.com', origin: ORIGIN },
+  { kind: 'caption-missing', ...SITE },
+  { kind: 'stopped', ...SITE },
+  { kind: 'stopped', site: 'youtube.com' },
   { kind: 'unsupported' },
   { kind: 'error' },
 ];
@@ -49,9 +52,39 @@ describe('entryFor', () => {
 
   it('offers links only on a site the person turned on', () => {
     for (const state of ALL_STATES) {
-      const turnedOn = state.kind === 'enabled' || PLAYER_STATES.includes(state);
+      const turnedOn = 'origin' in state && state.kind !== 'available' && state.kind !== 'denied';
       expect(entryFor(state).links.length > 0).toBe(turnedOn);
     }
+  });
+
+  it('says the extension stopped, puts out the thumb tab and offers to reload the page', () => {
+    expect(entryFor({ kind: 'stopped', ...SITE })).toEqual({
+      headword: 'example.com',
+      wordClass: 'parou aqui',
+      definitionTerm: null,
+      definition: 'A legenda dupla parou por um erro. O vídeo continua normal.',
+      thumbTab: 'hidden',
+      action: 'reload',
+      links: ['deactivate'],
+    });
+  });
+
+  it('has nothing to turn off when it stops on a supported site', () => {
+    const entry = entryFor({ kind: 'stopped', site: 'youtube.com' });
+    expect(entry.action).toBe('reload');
+    expect(entry.links).toEqual([]);
+  });
+
+  it('asks to pick the caption again when the learned one does not show up', () => {
+    const entry = entryFor({ kind: 'caption-missing', ...SITE });
+    expect(entry).toMatchObject({
+      wordClass: 'ativado por você',
+      definition:
+        'A legenda que você escolheu não apareceu neste vídeo. Se o site mudou, escolha de novo.',
+      thumbTab: 'lit',
+      action: 'pick',
+      links: ['load', 'deactivate'],
+    });
   });
 
   it('names the player of another address and offers to turn it on too', () => {

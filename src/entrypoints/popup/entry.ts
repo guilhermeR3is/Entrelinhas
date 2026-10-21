@@ -6,7 +6,11 @@ type PlayerState = SiteFields &
   PlayerFrame & { kind: 'player-needed' | 'player-denied' | 'player-enabled' };
 
 export type EntryState =
-  TabStatus | (SiteFields & { kind: 'denied' }) | PlayerState | { kind: 'error' };
+  | TabStatus
+  | (SiteFields & { kind: 'denied' | 'caption-missing' | 'stopped' })
+  | { kind: 'stopped'; site: string }
+  | PlayerState
+  | { kind: 'error' };
 
 export type EntryAction =
   'activate' | 'activate-player' | 'deactivate' | 'pick' | 'load' | 'reload' | 'retry';
@@ -102,6 +106,27 @@ export function entryFor(state: EntryState): Entry {
         thumbTab: 'lit',
         action: 'reload',
         links: ['deactivate'],
+      };
+    case 'caption-missing':
+      return {
+        headword: state.site,
+        wordClass: 'ativado por você',
+        definitionTerm: null,
+        definition:
+          'A legenda que você escolheu não apareceu neste vídeo. Se o site mudou, escolha de novo.',
+        thumbTab: 'lit',
+        action: 'pick',
+        links: ['load', 'deactivate'],
+      };
+    case 'stopped':
+      return {
+        headword: state.site,
+        wordClass: 'parou aqui',
+        definitionTerm: null,
+        definition: 'A legenda dupla parou por um erro. O vídeo continua normal.',
+        thumbTab: 'hidden',
+        action: 'reload',
+        links: 'origin' in state ? ['deactivate'] : [],
       };
     case 'unsupported':
       return {
