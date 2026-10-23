@@ -3,6 +3,7 @@ import '@fontsource-variable/atkinson-hyperlegible-next/wght-italic.css';
 import './style.css';
 import { browser } from 'wxt/browser';
 import { logger } from '../../logger';
+import { isTurnedOff, turnSite } from '../../site-switch';
 import { type TabStatus, tabStatusFromUrl } from '../../tab-status';
 import { choosePlayerFrame, measureFrames, type PlayerFrame } from '../../universal/player-frames';
 import {
@@ -138,12 +139,15 @@ async function readCurrentTab(): Promise<CurrentTab> {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     const { origins = [] } = await browser.permissions.getAll();
     const status = tabStatusFromUrl(tab?.url, origins);
-    const [player, problem] = await Promise.all([
+    const host = siteHost(tab?.url);
+    const captionRuns = status.kind === 'enabled' || status.kind === 'active';
+    const [player, problem, turnedOff] = await Promise.all([
       status.kind === 'enabled' ? findPlayer(tab?.id, tab?.url) : null,
-      status.kind === 'enabled' || status.kind === 'active' ? askForProblem(tab?.id) : null,
+      captionRuns ? askForProblem(tab?.id) : null,
+      captionRuns && host !== null ? isTurnedOff(browser.storage.local, host) : false,
     ]);
     return {
-      state: withProblem(withPlayer(status, player, origins), problem),
+      state: withSwitch(withProblem(withPlayer(status, player, origins), problem), turnedOff),
       tabId: tab?.id,
       url: tab?.url,
       player,
@@ -186,6 +190,17 @@ async function askForProblem(tabId: number | undefined): Promise<SiteProblem | n
     logger.error('No content script answered in the tab', error);
     return null;
   }
+}
+
+function siteHost(url: string | undefined): string | null {
+  return url !== undefined && URL.canParse(url) ? new URL(url).hostname : null;
+}
+
+function withSwitch(state: EntryState, turnedOff: boolean): EntryState {
+  if (!turnedOff || !('site' in state)) return state;
+  return 'origin' in state
+    ? { kind: 'turned-off', site: state.site, origin: state.origin }
+    : { kind: 'turned-off', site: state.site };
 }
 
 function withProblem(state: EntryState, problem: SiteProblem | null): EntryState {
@@ -272,6 +287,24 @@ async function deactivate({ site, origin }: SiteState): Promise<void> {
   show({ kind: 'available', site, origin }, { animate: true });
 }
 
+async function switchCaption(on: boolean): Promise<void> {
+  const host = siteHost(current.url);
+  setBusy(true);
+  try {
+    if (host === null) throw new Error('The active tab has no site');
+    await turnSite(browser.storage.local, host, on);
+  } catch (error) {
+    logger.error('Could not switch the caption on the site', error);
+    show({ kind: 'error' }, { animate: true });
+    return;
+  }
+  const tab = await readCurrentTab();
+  current = tab;
+  show(tab.state, { animate: true });
+  const undo = on ? 'turn-off' : 'turn-on';
+  [action, ...actionLinks].find((control) => control.dataset.action === undo)?.focus();
+}
+
 async function handOverToTab(message: typeof PICK_CAPTION | typeof LOAD_FILE): Promise<void> {
   const { tabId } = current;
   if (tabId === undefined) {
@@ -296,6 +329,10 @@ function runAction(chosen: string | undefined): void {
   }
   if (chosen === 'reload') {
     void reloadTab();
+    return;
+  }
+  if (chosen === 'turn-off' || chosen === 'turn-on') {
+    void switchCaption(chosen === 'turn-on');
     return;
   }
   if (!('origin' in state)) return;

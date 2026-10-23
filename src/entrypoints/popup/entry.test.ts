@@ -18,12 +18,14 @@ const ALL_STATES: EntryState[] = [
   { kind: 'caption-missing', ...SITE },
   { kind: 'stopped', ...SITE },
   { kind: 'stopped', site: 'youtube.com' },
+  { kind: 'turned-off', ...SITE },
+  { kind: 'turned-off', site: 'youtube.com' },
   { kind: 'unsupported' },
   { kind: 'error' },
 ];
 
 describe('entryFor', () => {
-  it('names the supported site and lights the thumb tab, with nothing to turn off', () => {
+  it('names the supported site and lights the thumb tab, with only the caption to turn off', () => {
     expect(entryFor({ kind: 'active', site: 'youtube.com' })).toEqual({
       headword: 'youtube.com',
       wordClass: 'site compatível',
@@ -31,7 +33,7 @@ describe('entryFor', () => {
       definition: 'Ativa aqui.',
       thumbTab: 'lit',
       action: null,
-      links: [],
+      links: ['turn-off'],
     });
   });
 
@@ -46,15 +48,41 @@ describe('entryFor', () => {
     const entry = entryFor({ kind: 'enabled', site: 'example.com', origin: ORIGIN });
     expect(entry).toMatchObject({ wordClass: 'ativado por você', definition: 'Ativa aqui.' });
     expect(entry.action).toBe('pick');
-    expect(entry.links).toEqual(['load', 'deactivate']);
+    expect(entry.links).toEqual(['load', 'turn-off', 'deactivate']);
     expect(entry.thumbTab).toBe('lit');
   });
 
-  it('offers links only on a site the person turned on', () => {
+  it('offers to turn the caption off wherever it is on, and to turn the site off after it', () => {
+    for (const state of ALL_STATES) {
+      const { links, thumbTab } = entryFor(state);
+      expect(links.includes('turn-off')).toBe(thumbTab === 'lit');
+      if (links.includes('turn-off') && links.includes('deactivate')) {
+        expect(links.indexOf('turn-off')).toBeLessThan(links.indexOf('deactivate'));
+      }
+    }
+  });
+
+  it('offers to turn off the site only where the person turned it on', () => {
     for (const state of ALL_STATES) {
       const turnedOn = 'origin' in state && state.kind !== 'available' && state.kind !== 'denied';
-      expect(entryFor(state).links.length > 0).toBe(turnedOn);
+      expect(entryFor(state).links.includes('deactivate')).toBe(turnedOn);
     }
+  });
+
+  it('says the caption is off here, puts out the thumb tab and offers to turn it on', () => {
+    expect(entryFor({ kind: 'turned-off', ...SITE })).toEqual({
+      headword: 'example.com',
+      wordClass: 'desligada por você',
+      definitionTerm: null,
+      definition: 'A legenda dupla não aparece aqui. O vídeo mostra a legenda do próprio site.',
+      thumbTab: 'hidden',
+      action: 'turn-on',
+      links: ['deactivate'],
+    });
+    expect(entryFor({ kind: 'turned-off', site: 'youtube.com' })).toMatchObject({
+      action: 'turn-on',
+      links: [],
+    });
   });
 
   it('says the extension stopped, puts out the thumb tab and offers to reload the page', () => {
@@ -83,7 +111,7 @@ describe('entryFor', () => {
         'A legenda que você escolheu não apareceu neste vídeo. Se o site mudou, escolha de novo.',
       thumbTab: 'lit',
       action: 'pick',
-      links: ['load', 'deactivate'],
+      links: ['load', 'turn-off', 'deactivate'],
     });
   });
 
@@ -96,7 +124,7 @@ describe('entryFor', () => {
       definitionTerm: 'player.vimeo.com',
       thumbTab: 'lit',
       action: 'activate-player',
-      links: ['deactivate'],
+      links: ['turn-off', 'deactivate'],
     });
   });
 
@@ -112,7 +140,7 @@ describe('entryFor', () => {
       'Player ativado. Recarregue a página para a legenda aparecer nele.',
     );
     expect(entry.action).toBe('reload');
-    expect(entry.links).toEqual(['deactivate']);
+    expect(entry.links).toEqual(['turn-off', 'deactivate']);
   });
 
   it('lets the person try again after saying no to Chrome', () => {

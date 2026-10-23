@@ -7,13 +7,21 @@ type PlayerState = SiteFields &
 
 export type EntryState =
   | TabStatus
-  | (SiteFields & { kind: 'denied' | 'caption-missing' | 'stopped' })
-  | { kind: 'stopped'; site: string }
+  | (SiteFields & { kind: 'denied' | 'caption-missing' | 'stopped' | 'turned-off' })
+  | { kind: 'stopped' | 'turned-off'; site: string }
   | PlayerState
   | { kind: 'error' };
 
 export type EntryAction =
-  'activate' | 'activate-player' | 'deactivate' | 'pick' | 'load' | 'reload' | 'retry';
+  | 'activate'
+  | 'activate-player'
+  | 'deactivate'
+  | 'turn-off'
+  | 'turn-on'
+  | 'pick'
+  | 'load'
+  | 'reload'
+  | 'retry';
 
 export interface Entry {
   headword: string;
@@ -29,6 +37,8 @@ export const ACTION_LABELS: Record<EntryAction, string> = {
   activate: 'Ativar neste site',
   'activate-player': 'Ativar também no player',
   deactivate: 'Desativar neste site',
+  'turn-off': 'Desligar a legenda dupla',
+  'turn-on': 'Ligar a legenda dupla',
   pick: 'Escolher a legenda na tela',
   load: 'Carregar arquivo de legenda',
   reload: 'Recarregar a página',
@@ -45,7 +55,7 @@ export function entryFor(state: EntryState): Entry {
         definition: 'Ativa aqui.',
         thumbTab: 'lit',
         action: null,
-        links: [],
+        links: ['turn-off'],
       };
     case 'available':
       return {
@@ -65,7 +75,7 @@ export function entryFor(state: EntryState): Entry {
         definition: 'Ativa aqui.',
         thumbTab: 'lit',
         action: 'pick',
-        links: ['load', 'deactivate'],
+        links: ['load', 'turn-off', 'deactivate'],
       };
     case 'denied':
       return {
@@ -85,7 +95,7 @@ export function entryFor(state: EntryState): Entry {
         definition: 'O vídeo desta página está num player de outro endereço:',
         thumbTab: 'lit',
         action: 'activate-player',
-        links: ['deactivate'],
+        links: ['turn-off', 'deactivate'],
       };
     case 'player-denied':
       return {
@@ -95,7 +105,7 @@ export function entryFor(state: EntryState): Entry {
         definition: 'O Chrome ficou sem a permissão do player. Pode tentar de novo.',
         thumbTab: 'lit',
         action: 'activate-player',
-        links: ['deactivate'],
+        links: ['turn-off', 'deactivate'],
       };
     case 'player-enabled':
       return {
@@ -105,7 +115,7 @@ export function entryFor(state: EntryState): Entry {
         definition: 'Player ativado. Recarregue a página para a legenda aparecer nele.',
         thumbTab: 'lit',
         action: 'reload',
-        links: ['deactivate'],
+        links: ['turn-off', 'deactivate'],
       };
     case 'caption-missing':
       return {
@@ -116,7 +126,7 @@ export function entryFor(state: EntryState): Entry {
           'A legenda que você escolheu não apareceu neste vídeo. Se o site mudou, escolha de novo.',
         thumbTab: 'lit',
         action: 'pick',
-        links: ['load', 'deactivate'],
+        links: ['load', 'turn-off', 'deactivate'],
       };
     case 'stopped':
       return {
@@ -126,6 +136,16 @@ export function entryFor(state: EntryState): Entry {
         definition: 'A legenda dupla parou por um erro. O vídeo continua normal.',
         thumbTab: 'hidden',
         action: 'reload',
+        links: 'origin' in state ? ['deactivate'] : [],
+      };
+    case 'turned-off':
+      return {
+        headword: state.site,
+        wordClass: 'desligada por você',
+        definitionTerm: null,
+        definition: 'A legenda dupla não aparece aqui. O vídeo mostra a legenda do próprio site.',
+        thumbTab: 'hidden',
+        action: 'turn-on',
         links: 'origin' in state ? ['deactivate'] : [],
       };
     case 'unsupported':

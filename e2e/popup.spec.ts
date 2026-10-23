@@ -6,6 +6,7 @@ import {
   stubPermissions,
   stubTabMessages,
   test,
+  turnSitesOff,
 } from './fixtures';
 
 const ASK_PROBLEM = { type: 'projeto-bilingue:site-problem' };
@@ -83,7 +84,11 @@ test('hands loading a subtitle file over to the tab', async ({ context, popupUrl
   await popup.goto(popupUrl);
 
   const links = popup.locator('.entry-link:not([hidden])');
-  await expect(links).toHaveText(['Carregar arquivo de legenda', 'Desativar neste site']);
+  await expect(links).toHaveText([
+    'Carregar arquivo de legenda',
+    'Desligar a legenda dupla',
+    'Desativar neste site',
+  ]);
   await popup.getByRole('button', { name: 'Carregar arquivo de legenda' }).click();
 
   await expect(popup.locator('html')).toHaveAttribute('data-closed', 'true');
@@ -259,7 +264,10 @@ test.describe('a site whose video plays in a player of another address', () => {
     );
     await expect(popup.locator('.definition strong')).toHaveText('player.vimeo.com');
     await expect(popup.locator('.thumb-tab')).toHaveText('C');
-    await expect(popup.locator('.entry-link:visible')).toHaveText(['Desativar neste site']);
+    await expect(popup.locator('.entry-link:visible')).toHaveText([
+      'Desligar a legenda dupla',
+      'Desativar neste site',
+    ]);
     await popup.getByRole('button', { name: 'Ativar também no player' }).click();
 
     await expect(popup.getByRole('status')).toContainText(
@@ -404,6 +412,91 @@ test.describe('a site where the extension ran into a problem', () => {
     });
 
     await expect(popup.getByRole('status')).toContainText('Ativa aqui.');
+  });
+});
+
+test.describe('turning the caption off on a site', () => {
+  function storedTurnedOff(popup: Page): Promise<unknown> {
+    return popup.evaluate(async () => {
+      const local = (
+        globalThis as unknown as {
+          chrome: {
+            storage: { local: { get: (key: string) => Promise<Record<string, unknown>> } };
+          };
+        }
+      ).chrome.storage.local;
+      return (await local.get('turnedOffSites')).turnedOffSites;
+    });
+  }
+
+  test('turns it off on YouTube and back on, keeping the focus on the way back', async ({
+    context,
+    popupUrl,
+  }) => {
+    const popup = await context.newPage();
+    await stubActiveTab(popup, { url: 'https://www.youtube.com/watch?v=abc', id: 42 });
+    await stubTabMessages(popup);
+    await popup.goto(popupUrl);
+
+    await expect(popup.locator('.entry-link:visible')).toHaveText(['Desligar a legenda dupla']);
+    await popup.getByRole('button', { name: 'Desligar a legenda dupla' }).click();
+
+    await expect(popup.getByRole('status')).toContainText('desligada por você');
+    await expect(popup.getByRole('status')).toContainText(
+      'A legenda dupla não aparece aqui. O vídeo mostra a legenda do próprio site.',
+    );
+    await expect(popup.getByRole('button', { name: 'Ligar a legenda dupla' })).toBeFocused();
+    await expect(popup.locator('.thumb-tab')).toBeHidden();
+    await expect(popup.locator('.entry-link:visible')).toHaveCount(0);
+    expect(await storedTurnedOff(popup)).toEqual(['www.youtube.com']);
+
+    await popup.getByRole('button', { name: 'Ligar a legenda dupla' }).click();
+    await expect(popup.getByRole('status')).toContainText('site compatível');
+    await expect(popup.getByRole('button', { name: 'Desligar a legenda dupla' })).toBeFocused();
+    await expect(popup.locator('.thumb-tab')).toHaveText('Y');
+    expect(await storedTurnedOff(popup)).toEqual([]);
+  });
+
+  test('opens already off, ahead of any problem or player, keeping the way to turn the site off', async ({
+    context,
+    popupUrl,
+  }) => {
+    await turnSitesOff(context, ['www.example.com']);
+    const popup = await context.newPage();
+    await stubActiveTab(popup, { url: 'https://www.example.com/aula/3', id: 42 });
+    await stubPermissions(popup, { granted: ['https://www.example.com/*'] });
+    await stubPage(popup, {
+      frames: [{ src: 'https://player.vimeo.com/video/9', width: 854, height: 480 }],
+    });
+    await stubTabMessages(popup, { [ASK_PROBLEM.type]: { problem: 'stopped' } });
+    await popup.goto(popupUrl);
+
+    await expect(popup.getByRole('status')).toContainText('desligada por você');
+    await expect(popup.getByRole('button', { name: 'Ligar a legenda dupla' })).toBeVisible();
+    await expect(popup.locator('.entry-link:visible')).toHaveText(['Desativar neste site']);
+  });
+
+  test('says so and offers a retry when Chrome cannot keep the choice', async ({
+    context,
+    popupUrl,
+  }) => {
+    const popup = await context.newPage();
+    await stubActiveTab(popup, { url: 'https://www.youtube.com/watch?v=abc', id: 42 });
+    await stubTabMessages(popup);
+    await popup.addInitScript(() => {
+      const local = (globalThis as unknown as { chrome: { storage: { local: object } } }).chrome
+        .storage.local;
+      Object.defineProperty(local, 'set', {
+        value: () => Promise.reject(new Error('Simulated storage failure')),
+      });
+    });
+    await popup.goto(popupUrl);
+
+    await popup.getByRole('button', { name: 'Desligar a legenda dupla' }).click();
+    await expect(popup.getByRole('status')).toContainText('sem resposta');
+    await popup.getByRole('button', { name: 'Tentar de novo' }).click();
+    await expect(popup.getByRole('status')).toContainText('site compatível');
+    expect(await storedTurnedOff(popup)).toBeUndefined();
   });
 });
 
