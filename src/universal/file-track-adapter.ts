@@ -10,7 +10,6 @@ export const MAX_DELAY_MS = 10 * 60 * 1000;
 export class FileTrackAdapter implements PlayerAdapter {
   private readonly siteModes = new Map<TextTrack, TextTrackMode>();
   private shownTrack: SubtitleTrack;
-  private currentDelayMs = 0;
   private onCaptionsChange: () => void = () => undefined;
   private stopControls: () => void = () => undefined;
   private speedChoice: SpeedChoice | undefined;
@@ -18,8 +17,9 @@ export class FileTrackAdapter implements PlayerAdapter {
   constructor(
     private readonly media: HTMLVideoElement,
     private readonly fileCues: readonly Cue[],
+    private currentDelayMs = 0,
   ) {
-    this.shownTrack = new SubtitleTrack(fileCues);
+    this.shownTrack = this.shiftedTrack();
   }
 
   get player(): Element {
@@ -48,13 +48,7 @@ export class FileTrackAdapter implements PlayerAdapter {
     const delayMs = Math.min(MAX_DELAY_MS, Math.max(-MAX_DELAY_MS, this.currentDelayMs + byMs));
     if (delayMs === this.currentDelayMs) return delayMs;
     this.currentDelayMs = delayMs;
-    this.shownTrack = new SubtitleTrack(
-      this.fileCues.map((cue) => ({
-        ...cue,
-        startMs: cue.startMs + delayMs,
-        endMs: cue.endMs + delayMs,
-      })),
-    );
+    this.shownTrack = this.shiftedTrack();
     this.onCaptionsChange();
     return delayMs;
   }
@@ -98,5 +92,16 @@ export class FileTrackAdapter implements PlayerAdapter {
       this.siteModes.set(track, track.mode);
       track.mode = 'hidden';
     }
+  }
+
+  private shiftedTrack(): SubtitleTrack {
+    const delayMs = this.currentDelayMs;
+    return new SubtitleTrack(
+      this.fileCues.map((cue) => ({
+        ...cue,
+        startMs: cue.startMs + delayMs,
+        endMs: cue.endMs + delayMs,
+      })),
+    );
   }
 }

@@ -60,6 +60,17 @@ describe('FileTrackAdapter', () => {
     expect(textsAt(adapter, 500)).toEqual(['Hello there.']);
   });
 
+  it('starts with the delay it is given, from where it left off', () => {
+    const adapter = new FileTrackAdapter(fakeVideo(), FILE_CUES, 300);
+    expect(adapter.delayMs).toBe(300);
+    expect(textsAt(adapter, 1200)).toEqual([]);
+    expect(textsAt(adapter, 1300)).toEqual(['Hello there.']);
+
+    adapter.shiftDelay(-DELAY_STEP_MS);
+    expect(adapter.delayMs).toBe(200);
+    expect(adapter.englishTrack().cues[0]).toMatchObject({ startMs: 1200, endMs: 3200 });
+  });
+
   it('stops at the delay limit without redrawing', () => {
     const { adapter, onCaptionsChange } = startedAdapter();
     expect(adapter.shiftDelay(MAX_DELAY_MS + 5000)).toBe(MAX_DELAY_MS);

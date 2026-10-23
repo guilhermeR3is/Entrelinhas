@@ -510,6 +510,52 @@ test.describe('loading a subtitle file', () => {
     await expect(page.locator(STRIP)).toContainText('Lendo lesson.srt.');
   });
 
+  test('keeps the delay when the session starts again, and resets it for a new file', async ({
+    page,
+    context,
+  }) => {
+    await openLoader(page, context, '/plain-video.html');
+    await chooseFile(page, LESSON);
+    const later = page.locator(OVERLAY).getByRole('button', { name: 'Atrasar a legenda' });
+    await later.click();
+    await later.click();
+    await expect(page.locator(`${OVERLAY} .delay`)).toHaveText('+0,2 s');
+
+    await sendToTestPage(context, LOAD);
+    await expect(page.locator(STRIP)).toContainText('Solte aqui um arquivo .srt ou .vtt.');
+    await page.keyboard.press('Escape');
+    await expect(page.locator(`${OVERLAY} .delay`)).toHaveText('+0,2 s');
+    await seek(page, 2.1);
+    await expect(page.locator(ENGLISH)).toHaveText('This line comes from a file.');
+
+    await sendToTestPage(context, LOAD);
+    await chooseFile(page, LESSON);
+    await expect(page.locator(`${OVERLAY} .delay`)).toHaveText('0 s');
+    await expect(page.locator(ENGLISH)).toBeHidden();
+  });
+
+  test('swaps the strip that is leaving for the one the person opens next', async ({
+    page,
+    context,
+  }) => {
+    const pick = { type: 'projeto-bilingue:pick-caption' };
+    const strips = page.locator(`${OVERLAY} .picker-strip`);
+    await openLoader(page, context, '/screen-captions.html');
+    await chooseFile(page, LESSON);
+    await expect(strips).toContainText('Lendo lesson.srt');
+    await seek(page, 1);
+
+    await sendToTestPage(context, pick);
+    await expect(strips).toHaveCount(1);
+    await expect(strips).toContainText('Clique na legenda do vídeo. Esc cancela.');
+    await page.locator('.fp-line').click();
+    await expect(strips).toContainText('aprendida');
+
+    await sendToTestPage(context, LOAD);
+    await expect(strips).toHaveCount(1);
+    await expect(strips).toContainText('Solte aqui um arquivo .srt ou .vtt.');
+  });
+
   test('puts the file above the English track the site already has', async ({ page, context }) => {
     await openLoader(page, context, '/native-tracks.html');
     await chooseFile(page, LESSON);

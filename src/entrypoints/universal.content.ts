@@ -40,7 +40,10 @@ export default defineContentScript({
     let sessionBox: HTMLElement | undefined;
     let picker: CaptionPicker | undefined;
     let loader: FileLoader | undefined;
+    let leavingStrip: CaptionPicker | FileLoader | undefined;
     let fileCues: readonly Cue[] | null = null;
+    let fileDelayMs = 0;
+    let fileAdapter: FileTrackAdapter | undefined;
     let mounted: { container: HTMLElement; video: HTMLVideoElement } | undefined;
     let rule: SiteRule | null = null;
     let cover: VideoCover | undefined;
@@ -75,13 +78,13 @@ export default defineContentScript({
       sessionBox = document.createElement('div');
       mounted.container.append(sessionBox);
       const { video } = mounted;
+      fileAdapter = fileCues ? new FileTrackAdapter(video, fileCues, fileDelayMs) : undefined;
       session = new SubtitleSession(
         sessionBox,
-        fileCues
-          ? new FileTrackAdapter(video, fileCues)
-          : rule
+        fileAdapter ??
+          (rule
             ? new ScreenCaptionAdapter(video, rule.captionSelector)
-            : new NativeTrackAdapter(video),
+            : new NativeTrackAdapter(video)),
         translation,
         preferences,
         () => {
@@ -90,6 +93,8 @@ export default defineContentScript({
       );
     };
     const stopSession = () => {
+      if (fileAdapter) fileDelayMs = fileAdapter.delayMs;
+      fileAdapter = undefined;
       session?.stop();
       session = undefined;
       sessionBox?.remove();
@@ -105,11 +110,14 @@ export default defineContentScript({
     };
     const loadFile = async (file: File) => {
       fileCues = await readSubtitleFile(file, 'en');
+      fileDelayMs = 0;
     };
     const openFileLoader = () => {
       if (!mounted || picker || loader || stoppedByError) return;
       stopSession();
+      leavingStrip?.close();
       loader = new FileLoader(mounted.container, mounted.video, loadFile, () => {
+        leavingStrip = loader;
         loader = undefined;
         startSession();
       });
@@ -117,7 +125,9 @@ export default defineContentScript({
     const pickCaption = () => {
       if (!mounted || picker || loader || stoppedByError) return;
       stopSession();
+      leavingStrip?.close();
       picker = new CaptionPicker(mounted.container, mounted.video, learn, () => {
+        leavingStrip = picker;
         picker = undefined;
         startSession();
       });
@@ -172,6 +182,7 @@ export default defineContentScript({
         picker = undefined;
         loader?.close();
         loader = undefined;
+        leavingStrip?.close();
         stopSession();
         cover?.disconnect();
         mounted = undefined;
