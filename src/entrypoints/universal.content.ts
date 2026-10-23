@@ -1,14 +1,10 @@
 import { createShadowRootUi } from 'wxt/utils/content-script-ui/shadow-root';
-import { fakeTranslatorApi } from '../../e2e/fake-translator';
 import { browser } from 'wxt/browser';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import overlayCss from '../overlay/subtitle-overlay.css?inline';
 import { loadSubtitleFont } from '../overlay/subtitle-font';
+import { pageTranslatorApi, prepareStudy } from '../session/study-page';
 import { SubtitleSession } from '../session/subtitle-session';
-import { DEFAULT_KEYS, listenForStudyKeys } from '../study/study-keys';
-import { StudyPreferenceStore } from '../study/study-preferences';
-import { PortugueseTranslation } from '../translation/portuguese-translation';
-import { findTranslatorApi } from '../translation/translator-api';
 import { frameTranslatorApi, servePageTranslation } from '../translation/frame-translation';
 import { NativeTrackAdapter } from '../universal/native-track-adapter';
 import { ScreenCaptionAdapter } from '../universal/screen-caption-adapter';
@@ -49,29 +45,16 @@ export default defineContentScript({
     let cover: VideoCover | undefined;
     let fontLoaded = false;
     let stoppedByError = false;
-    let keys = DEFAULT_KEYS;
-    const translation = new PortugueseTranslation(() => session?.render());
-    const translatorApi = inFrame
-      ? frameTranslatorApi()
-      : import.meta.env.MODE === 'e2e'
-        ? fakeTranslatorApi(window)
-        : findTranslatorApi(globalThis);
-    void translation.prepare(translatorApi, window, ctx.signal);
-    if (!inFrame) servePageTranslation(translation, ctx.signal);
-    listenForStudyKeys(
+    const study = prepareStudy(
       window,
-      (command) => !ctx.isInvalid && (session?.handleCommand(command) ?? false),
-      ctx.signal,
-      () => keys,
+      ctx,
+      inFrame ? frameTranslatorApi() : pageTranslatorApi(window),
+      () => session,
     );
+    if (!inFrame) servePageTranslation(study.translation, ctx.signal);
 
-    const preferences = await StudyPreferenceStore.load(browser.storage.local);
+    const preferences = await study.preferences;
     rule = await readSiteRule(browser.storage.local, location.host);
-    keys = preferences.current.keys;
-    preferences.followKeys((chosen) => {
-      keys = chosen;
-      session?.setKeys(chosen);
-    }, ctx.signal);
 
     const startSession = () => {
       if (!mounted || stoppedByError) return;
@@ -85,7 +68,7 @@ export default defineContentScript({
           (rule
             ? new ScreenCaptionAdapter(video, rule.captionSelector)
             : new NativeTrackAdapter(video)),
-        translation,
+        study.translation,
         preferences,
         () => {
           stoppedByError = true;
