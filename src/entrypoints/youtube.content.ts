@@ -8,6 +8,7 @@ import { SubtitleSession } from '../session/subtitle-session';
 import { YouTubeCaptions } from '../youtube/youtube-captions';
 import { YouTubePlayerAdapter } from '../youtube/youtube-player-adapter';
 import { SITE_PROBLEM, type SiteProblem, readSiteMessage } from '../universal/site-message';
+import { followSiteSwitch, isTurnedOff } from '../site-switch';
 
 const PLAYER_SELECTOR = '#movie_player';
 
@@ -18,8 +19,10 @@ export default defineContentScript({
   async main(ctx) {
     const captions = new YouTubeCaptions(window);
     let session: SubtitleSession | undefined;
+    let mountedContainer: HTMLElement | undefined;
     let fontLoaded = false;
     let stoppedByError = false;
+    let turnedOff = false;
     const study = prepareStudy(window, ctx, pageTranslatorApi(window), () => session);
     ctx.addEventListener(window, 'message', (event) => {
       if (ctx.isInvalid) return;
@@ -41,28 +44,48 @@ export default defineContentScript({
     });
 
     const preferences = await study.preferences;
+    const startSession = () => {
+      const player = document.querySelector(PLAYER_SELECTOR);
+      if (!mountedContainer || !player || session || stoppedByError || turnedOff) return;
+      if (!fontLoaded) loadSubtitleFont(document.fonts);
+      fontLoaded = true;
+      session = new SubtitleSession(
+        mountedContainer,
+        new YouTubePlayerAdapter(player, captions),
+        study.translation,
+        preferences,
+        () => {
+          stoppedByError = true;
+        },
+      );
+    };
+    const stopSession = () => {
+      session?.stop();
+      session = undefined;
+    };
+    followSiteSwitch(
+      browser.storage.local,
+      location.hostname,
+      (off) => {
+        turnedOff = off;
+        if (off) stopSession();
+        else startSession();
+      },
+      ctx.signal,
+    );
+    turnedOff = await isTurnedOff(browser.storage.local, location.hostname);
+
     const ui = await createShadowRootUi(ctx, {
       name: 'projeto-bilingue-legenda',
       position: 'inline',
       anchor: PLAYER_SELECTOR,
       onMount: (container) => {
-        const player = document.querySelector(PLAYER_SELECTOR);
-        if (!player || stoppedByError) return;
-        if (!fontLoaded) loadSubtitleFont(document.fonts);
-        fontLoaded = true;
-        session = new SubtitleSession(
-          container,
-          new YouTubePlayerAdapter(player, captions),
-          study.translation,
-          preferences,
-          () => {
-            stoppedByError = true;
-          },
-        );
+        mountedContainer = container;
+        startSession();
       },
       onRemove: () => {
-        session?.stop();
-        session = undefined;
+        stopSession();
+        mountedContainer = undefined;
       },
     });
     ui.autoMount();

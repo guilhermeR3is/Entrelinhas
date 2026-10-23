@@ -111,18 +111,17 @@ export class SubtitleSession {
   stop(): void {
     if (this.stopped) return;
     this.stopped = true;
+    this.overlay.remove();
     this.listeners.abort();
     this.controls?.stop();
     cancelAnimationFrame(this.frame);
     this.adapter.stop();
-    this.overlay.hideNotice();
   }
 
   private readonly fail = (error: unknown): void => {
     if (this.failed) return;
     this.failed = true;
     logger.error('The subtitle session stepped aside after an error', error);
-    this.overlay.remove();
     try {
       this.stop();
     } catch (cleanupError) {

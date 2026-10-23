@@ -110,6 +110,19 @@ export async function stubTabMessages(
   }, replies);
 }
 
+export async function turnSitesOff(context: BrowserContext, hosts: string[]): Promise<void> {
+  const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  await worker.evaluate(
+    (turnedOffSites) =>
+      (
+        globalThis as unknown as {
+          chrome: { storage: { local: { set(items: object): Promise<void> } } };
+        }
+      ).chrome.storage.local.set({ turnedOffSites }),
+    hosts,
+  );
+}
+
 export const test = base.extend<{ context: BrowserContext; popupUrl: string; optionsUrl: string }>({
   context: async ({}, use) => {
     const context = await chromium.launchPersistentContext('', {

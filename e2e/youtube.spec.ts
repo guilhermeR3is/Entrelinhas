@@ -1,6 +1,6 @@
 import type { BrowserContext, Page } from '@playwright/test';
 import { openFakeYouTube } from './fake-youtube';
-import { expect, test } from './fixtures';
+import { expect, test, turnSitesOff } from './fixtures';
 
 const OVERLAY = 'projeto-bilingue-legenda';
 const ENGLISH = `${OVERLAY} .english`;
@@ -489,6 +489,26 @@ test('follows keys changed in the options while the video page stays open', asyn
   await page.keyboard.press('z');
   expect(await keysSeenByPage(page)).toEqual(['z']);
   expect(await speed(page)).toBe(0.95);
+});
+
+test('gets out of the way while the person keeps YouTube turned off', async ({ page, context }) => {
+  await open(page, 'video-a');
+  await expect(page.locator(ENGLISH)).toHaveText('First line of video A');
+
+  await turnSitesOff(context, ['www.youtube.com']);
+  await expect(page.locator(ENGLISH)).toHaveCount(0);
+  expect(await nativeCaptionsVisibility(page)).toBe('');
+  await page.keyboard.press('z');
+  expect(await keysSeenByPage(page)).toEqual(['z']);
+  expect(await speed(page)).toBe(1);
+
+  await open(page, 'video-a');
+  await expect(page.locator(ENGLISH)).toHaveCount(0);
+  expect(await nativeCaptionsVisibility(page)).toBe('');
+
+  await turnSitesOff(context, []);
+  await expect(page.locator(ENGLISH)).toHaveText('First line of video A');
+  expect(await nativeCaptionsVisibility(page)).toBe('hidden');
 });
 
 test('steps aside when the extension is reloaded while the video page stays open', async ({

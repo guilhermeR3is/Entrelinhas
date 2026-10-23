@@ -24,14 +24,16 @@ import type { Cue } from '../subtitles/cue';
 import { readSubtitleFile } from '../subtitles/subtitle-file';
 import { FileTrackAdapter } from '../universal/file-track-adapter';
 import { coverVideo, type VideoCover } from '../universal/video-cover';
-import { mayRunInFrame } from '../universal/frame-access';
+import { pageHostAroundFrame } from '../universal/frame-access';
+import { followSiteSwitch, isTurnedOff } from '../site-switch';
 
 export default defineContentScript({
   registration: 'runtime',
   cssInjectionMode: 'manual',
   async main(ctx) {
     const inFrame = window.self !== window.top;
-    if (inFrame && !(await mayRunInFrame())) return;
+    const pageHost = inFrame ? await pageHostAroundFrame() : location.hostname;
+    if (pageHost === null) return;
     let session: SubtitleSession | undefined;
     let sessionBox: HTMLElement | undefined;
     let picker: CaptionPicker | undefined;
@@ -45,6 +47,7 @@ export default defineContentScript({
     let cover: VideoCover | undefined;
     let fontLoaded = false;
     let stoppedByError = false;
+    let turnedOff = false;
     const study = prepareStudy(
       window,
       ctx,
@@ -57,7 +60,7 @@ export default defineContentScript({
     rule = await readSiteRule(browser.storage.local, location.host);
 
     const startSession = () => {
-      if (!mounted || stoppedByError) return;
+      if (!mounted || stoppedByError || turnedOff) return;
       sessionBox = document.createElement('div');
       mounted.container.append(sessionBox);
       const { video } = mounted;
@@ -96,7 +99,7 @@ export default defineContentScript({
       fileDelayMs = 0;
     };
     const openFileLoader = () => {
-      if (!mounted || picker || loader || stoppedByError) return;
+      if (!mounted || picker || loader || stoppedByError || turnedOff) return;
       stopSession();
       leavingStrip?.close();
       loader = new FileLoader(mounted.container, mounted.video, loadFile, () => {
@@ -106,7 +109,7 @@ export default defineContentScript({
       });
     };
     const pickCaption = () => {
-      if (!mounted || picker || loader || stoppedByError) return;
+      if (!mounted || picker || loader || stoppedByError || turnedOff) return;
       stopSession();
       leavingStrip?.close();
       picker = new CaptionPicker(mounted.container, mounted.video, learn, () => {
@@ -123,6 +126,28 @@ export default defineContentScript({
         ? 'learned-caption-missing'
         : null;
     };
+    const closeStrips = () => {
+      picker?.close();
+      picker = undefined;
+      loader?.close();
+      loader = undefined;
+      leavingStrip?.close();
+    };
+    followSiteSwitch(
+      browser.storage.local,
+      pageHost,
+      (off) => {
+        turnedOff = off;
+        if (off) {
+          closeStrips();
+          stopSession();
+        } else {
+          startSession();
+        }
+      },
+      ctx.signal,
+    );
+    turnedOff = await isTurnedOff(browser.storage.local, pageHost);
     const answerPopup = (
       message: unknown,
       _sender: unknown,
@@ -161,11 +186,7 @@ export default defineContentScript({
         startSession();
       },
       onRemove: () => {
-        picker?.close();
-        picker = undefined;
-        loader?.close();
-        loader = undefined;
-        leavingStrip?.close();
+        closeStrips();
         stopSession();
         cover?.disconnect();
         mounted = undefined;

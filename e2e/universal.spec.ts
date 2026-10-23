@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import type { BrowserContext, Frame, Page } from '@playwright/test';
-import { expect, test } from './fixtures';
+import { expect, test, turnSitesOff } from './fixtures';
 
 const OVERLAY = 'projeto-bilingue-legenda';
 const ENGLISH = `${OVERLAY} .english`;
@@ -200,6 +200,36 @@ test('steps aside and gives the site its subtitles back when the person turns th
     Array.from(document.querySelector('video')?.textTracks ?? [], (track) => track.mode),
   );
   expect(modes).toEqual(['showing', 'disabled']);
+});
+
+test('gets out of the way while the person keeps the site turned off', async ({
+  context,
+  page,
+}) => {
+  const trackModes = () =>
+    page.evaluate(() =>
+      Array.from(document.querySelector('video')?.textTracks ?? [], (track) => track.mode),
+    );
+  await page.goto('/native-tracks.html');
+  await seek(page, 0.75);
+  await expect(page.locator(ENGLISH)).toBeVisible();
+
+  await turnSitesOff(context, ['localhost']);
+  await expect(page.locator(ENGLISH)).toHaveCount(0);
+  expect(await trackModes()).toEqual(['showing', 'disabled']);
+  await page.locator('h1').click();
+  await page.keyboard.press('z');
+  expect(await page.evaluate(() => document.querySelector('video')?.playbackRate)).toBe(1);
+
+  await page.reload();
+  await seek(page, 0.75);
+  await expect(page.locator(OVERLAY)).toBeAttached();
+  await expect(page.locator(ENGLISH)).toHaveCount(0);
+  expect(await trackModes()).toEqual(['showing', 'disabled']);
+
+  await turnSitesOff(context, []);
+  await expect(page.locator(ENGLISH)).toHaveText('Hello, this is the test page.');
+  expect(await trackModes()).toEqual(['hidden', 'hidden']);
 });
 
 test.describe('on a site whose player draws its own captions', () => {
@@ -613,6 +643,24 @@ test.describe('a player inside a frame', () => {
     await expect(frame.locator(ENGLISH)).toHaveText('Hello, this is the test page.');
     await expect(frame.locator(PORTUGUESE)).toHaveText('Olá, esta é a página de teste.');
     await expect(page.locator(OVERLAY)).toHaveCount(0);
+  });
+
+  test('follows the page around the player when the person turns that site off', async ({
+    page,
+    context,
+  }) => {
+    await page.goto('/foreign-player.html');
+    const frame = await playerFrame(page);
+    await seekIn(frame, 0.75);
+    await expect(frame.locator(ENGLISH)).toBeVisible();
+
+    await turnSitesOff(context, ['player.localhost']);
+    await page.waitForTimeout(300);
+    await expect(frame.locator(ENGLISH)).toBeVisible();
+
+    await turnSitesOff(context, ['localhost']);
+    await expect(frame.locator(ENGLISH)).toHaveCount(0);
+    expect(await trackModes(frame)).toEqual(['showing']);
   });
 
   test('shows the caption over a player of another address once both are on', async ({ page }) => {

@@ -61,6 +61,7 @@ describe('SubtitleSession on the YouTube player', () => {
       'ResizeObserver',
       class {
         observe = vi.fn();
+        disconnect = vi.fn();
       },
     );
     vi.stubGlobal('AbortController', window.AbortController);
@@ -357,7 +358,7 @@ describe('SubtitleSession on the YouTube player', () => {
     receiveTrack();
     start().stop();
     playUntil(1.5);
-    expect(englishText()).toBeNull();
+    expect(document.querySelector('.subtitle')).toBeNull();
   });
 
   describe('with Portuguese', () => {

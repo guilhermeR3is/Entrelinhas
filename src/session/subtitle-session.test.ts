@@ -152,9 +152,10 @@ describe('SubtitleSession with any player adapter', () => {
     expect(find('.delay-group').hidden).toBe(true);
   });
 
-  it('stops the adapter with the session', () => {
+  it('stops the adapter with the session and takes the caption box off the page', () => {
     session.stop();
     expect(adapter.stopped).toBe(true);
+    expect(find('#overlay').children).toHaveLength(0);
   });
 
   describe('when something breaks', () => {

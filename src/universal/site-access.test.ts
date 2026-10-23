@@ -192,7 +192,7 @@ describe('serveSiteAccess answering a frame', () => {
       QUESTION,
       'https://www.example.com/aula/3',
     );
-    expect(sendResponse).toHaveBeenCalledWith({ allowed: true });
+    expect(sendResponse).toHaveBeenCalledWith({ pageHost: 'www.example.com' });
   });
 
   it('keeps a frame quiet inside a page that was not turned on', async () => {
@@ -201,7 +201,7 @@ describe('serveSiteAccess answering a frame', () => {
       QUESTION,
       'https://outro-site.com/',
     );
-    expect(sendResponse).toHaveBeenCalledWith({ allowed: false });
+    expect(sendResponse).toHaveBeenCalledWith({ pageHost: null });
   });
 
   it('keeps a frame quiet inside YouTube, which has its own adapter', async () => {
@@ -210,12 +210,12 @@ describe('serveSiteAccess answering a frame', () => {
       QUESTION,
       'https://www.youtube.com/watch?v=abc',
     );
-    expect(sendResponse).toHaveBeenCalledWith({ allowed: false });
+    expect(sendResponse).toHaveBeenCalledWith({ pageHost: null });
   });
 
   it('keeps a frame quiet when Chrome does not say which page holds it', async () => {
     const { sendResponse } = await ask(['https://www.example.com/*'], QUESTION, undefined);
-    expect(sendResponse).toHaveBeenCalledWith({ allowed: false });
+    expect(sendResponse).toHaveBeenCalledWith({ pageHost: null });
   });
 
   it('leaves other messages to their own listeners', async () => {

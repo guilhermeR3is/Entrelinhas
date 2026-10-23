@@ -1,6 +1,6 @@
 import { browser } from 'wxt/browser';
 import { logger } from '../logger';
-import { isFrameAccessRequest, pageIsAllowed } from './frame-access';
+import { allowedPageHost, isFrameAccessRequest } from './frame-access';
 
 const SCRIPT_ID = 'universal';
 const SCRIPT_FILE = '/content-scripts/universal.js';
@@ -28,11 +28,11 @@ export function serveSiteAccess(api: SiteAccessApi = browser): void {
     if (!isFrameAccessRequest(message)) return false;
     api.permissions.getAll().then(
       ({ origins = [] }) => {
-        sendResponse({ allowed: pageIsAllowed(universalSites(origins), sender.tab?.url) });
+        sendResponse({ pageHost: allowedPageHost(universalSites(origins), sender.tab?.url) });
       },
       (error: unknown) => {
         logger.error('Could not check the page around a frame', error);
-        sendResponse({ allowed: false });
+        sendResponse({ pageHost: null });
       },
     );
     return true;

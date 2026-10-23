@@ -12,11 +12,11 @@ const SiteRules = z.record(
 );
 
 export async function readSiteRule(
-  storage: SiteRuleStorage,
+  storageArea: SiteRuleStorage,
   host: string,
 ): Promise<SiteRule | null> {
   try {
-    return (await readRules(storage))[host] ?? null;
+    return (await readRules(storageArea))[host] ?? null;
   } catch (error) {
     logger.error('Could not read the site rules', error);
     return null;
@@ -24,16 +24,16 @@ export async function readSiteRule(
 }
 
 export async function saveSiteRule(
-  storage: SiteRuleStorage,
+  storageArea: SiteRuleStorage,
   host: string,
   rule: SiteRule,
 ): Promise<void> {
-  const rules = await readRules(storage);
-  await storage.set({ [STORAGE_KEY]: { ...rules, [host]: rule } });
+  const rules = await readRules(storageArea);
+  await storageArea.set({ [STORAGE_KEY]: { ...rules, [host]: rule } });
 }
 
-async function readRules(storage: SiteRuleStorage): Promise<Record<string, SiteRule>> {
-  const stored = (await storage.get(STORAGE_KEY))[STORAGE_KEY];
+async function readRules(storageArea: SiteRuleStorage): Promise<Record<string, SiteRule>> {
+  const stored = (await storageArea.get(STORAGE_KEY))[STORAGE_KEY];
   if (stored === undefined) return {};
   const rules = SiteRules.safeParse(stored);
   if (rules.success) return rules.data;
