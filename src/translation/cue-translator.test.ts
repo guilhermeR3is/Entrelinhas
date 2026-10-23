@@ -189,6 +189,31 @@ describe('CueTranslator', () => {
     );
   });
 
+  it('translates each speaker of a dialogue on its own, since the translator joins the lines', async () => {
+    const asked: string[] = [];
+    const joiningTranslator: Translator = {
+      translate: (text) => {
+        asked.push(text);
+        return Promise.resolve(`pt:${text.replace(/\s*\n\s*/g, ' ')}`);
+      },
+      destroy: () => undefined,
+    };
+    const cueTranslator = new CueTranslator(joiningTranslator, EN_PT);
+    const updates = await translateAll(
+      cueTranslator,
+      cuesOf('- Where are you going?\n- Home.', 'Hello\nthere.'),
+    );
+
+    expect(updates.at(-1)?.cues.map((cue) => cue.text)).toEqual([
+      'pt:- Where are you going?\npt:- Home.',
+      'pt:Hello there.',
+    ]);
+    expect(asked).toEqual(['- Where are you going?', '- Home.', 'Hello\nthere.']);
+    expect(await cueTranslator.translateLine('— Wait.\n— Go.', new AbortController().signal)).toBe(
+      'pt:— Wait.\npt:— Go.',
+    );
+  });
+
   it('translates a line read from the screen once and remembers it', async () => {
     const { translator, asked } = fakeTranslator();
     const cueTranslator = new CueTranslator(translator, EN_PT);

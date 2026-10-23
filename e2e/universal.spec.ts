@@ -375,7 +375,7 @@ test.describe('loading a subtitle file', () => {
     expect(await page.evaluate(() => document.querySelector('video')?.paused)).toBe(true);
   });
 
-  test('lines up the English dashes alone when the Portuguese is not a dialogue', async ({
+  test('lines up both languages of a dialogue, though the translator joins its lines', async ({
     page,
     context,
   }) => {
@@ -390,11 +390,10 @@ test.describe('loading a subtitle file', () => {
     await page.locator('h1').click();
     await seek(page, 1);
     await expect(page.locator(PORTUGUESE)).toHaveText(
-      '[pt] - Where are you going?\n- Home, before it starts to rain.',
+      '- [pt] Where are you going?\n- [pt] Home, before it starts to rain.',
     );
 
-    expectOneDashColumnInTheMiddle(await dialogueLayout(page, '.english'), 2);
-    await expect(page.locator(PORTUGUESE)).toHaveCSS('text-align', 'center');
+    expectOneDashColumnInTheMiddle(await dialogueLayout(page, '.english, .portuguese'), 4);
   });
 
   test('keeps the translation on screen while the delay changes', async ({ page, context }) => {

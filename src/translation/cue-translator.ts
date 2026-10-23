@@ -1,4 +1,5 @@
 import type { Cue } from '../subtitles/cue';
+import { isDialogue } from '../subtitles/dialogue';
 import { SubtitleTrack } from '../subtitles/subtitle-track';
 import { findCachedTranslations, saveTranslations } from './cache-client';
 import type { LanguagePair, Translation } from './translation-cache';
@@ -83,7 +84,15 @@ export class CueTranslator {
 
   private async translateOrAbort(text: string, signal: AbortSignal): Promise<string | null> {
     try {
-      return await this.translator.translate(text, { signal });
+      if (!isDialogue(text)) return await this.translator.translate(text, { signal });
+      const speakers = await Promise.all(
+        text
+          .split('\n')
+          .map(async (line) =>
+            line.trim() === '' ? line : this.translator.translate(line, { signal }),
+          ),
+      );
+      return speakers.join('\n');
     } catch (error) {
       if (signal.aborted) return null;
       throw error;

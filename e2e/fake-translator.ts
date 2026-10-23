@@ -22,7 +22,8 @@ export function fakeTranslatorApi(page: FakeTranslatorPage): TranslatorApi {
     translate: (text) => {
       translations += 1;
       page.document.documentElement.dataset.fakeTranslations = String(translations);
-      return Promise.resolve(`[pt] ${text}`);
+      const joined = text.replace(/\s*\n\s*/g, ' ');
+      return Promise.resolve(joined.replace(/^([-\u2013\u2014]\s*)?/, (dash) => `${dash}[pt] `));
     },
     destroy: () => undefined,
   };
