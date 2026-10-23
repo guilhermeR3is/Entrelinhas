@@ -111,3 +111,18 @@ it('stops following the pointer when it is stopped', () => {
   movePointer(200, 100);
   expect(onLift).not.toHaveBeenCalled();
 });
+
+it('does not measure the video on every pointer move while it has no bar', () => {
+  video.controls = false;
+  const measure = vi.spyOn(video, 'getBoundingClientRect');
+  play();
+  movePointer(200, 100);
+  movePointer(210, 110);
+  expect(measure).not.toHaveBeenCalled();
+  expect(lastLift()).toBe(0);
+
+  video.controls = true;
+  movePointer(220, 120);
+  expect(measure).toHaveBeenCalledTimes(1);
+  expect(lastLift()).toBe(NATIVE_CONTROLS_PX);
+});

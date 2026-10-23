@@ -19,6 +19,7 @@ export function watchNativeControls(
     onLift(lift);
   };
   const followPointer = (event: PointerEvent) => {
+    if (!video.controls) return;
     const area = video.getBoundingClientRect();
     const over =
       event.clientX >= area.left &&

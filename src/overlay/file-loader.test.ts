@@ -81,7 +81,7 @@ describe('FileLoader', () => {
 
     expect(load).toHaveBeenCalledWith(file);
     expect(find('.definition').textContent).toBe(
-      'Lendo aula-3.en.srt. Ajuste o atraso na faixa de estudo.',
+      'Lendo aula-3.en.srt. Use Atraso − + junto da legenda para acertar o tempo.',
     );
     expect(find('.file-actions').hidden).toBe(true);
     expect(onDone).toHaveBeenCalledOnce();

@@ -36,7 +36,7 @@ export interface Entry {
 export const ACTION_LABELS: Record<EntryAction, string> = {
   activate: 'Ativar neste site',
   'activate-player': 'Ativar também no player',
-  deactivate: 'Desativar neste site',
+  deactivate: 'Tirar o acesso a este site',
   'turn-off': 'Desligar a legenda dupla',
   'turn-on': 'Ligar a legenda dupla',
   pick: 'Escolher a legenda na tela',

@@ -49,7 +49,7 @@ test('turns a site on after Chrome says yes, asking only for that address', asyn
 
   await expect(popup.getByRole('status')).toContainText('ativado por você');
   await expect(popup.locator('.thumb-tab')).toHaveText('E');
-  await expect(popup.getByRole('button', { name: 'Desativar neste site' })).toBeVisible();
+  await expect(popup.getByRole('button', { name: 'Tirar o acesso a este site' })).toBeVisible();
   expect(await permissionCalls(popup)).toEqual(['request https://www.example.com/*']);
 });
 
@@ -64,7 +64,7 @@ test('starts picking the caption in the tab and gets out of the way', async ({
   await popup.goto(popupUrl);
 
   await expect(popup.getByRole('button', { name: 'Escolher a legenda na tela' })).toBeVisible();
-  await expect(popup.getByRole('button', { name: 'Desativar neste site' })).toHaveClass(
+  await expect(popup.getByRole('button', { name: 'Tirar o acesso a este site' })).toHaveClass(
     /entry-link/,
   );
   await popup.getByRole('button', { name: 'Escolher a legenda na tela' }).click();
@@ -87,7 +87,7 @@ test('hands loading a subtitle file over to the tab', async ({ context, popupUrl
   await expect(links).toHaveText([
     'Carregar arquivo de legenda',
     'Desligar a legenda dupla',
-    'Desativar neste site',
+    'Tirar o acesso a este site',
   ]);
   await popup.getByRole('button', { name: 'Carregar arquivo de legenda' }).click();
 
@@ -118,7 +118,7 @@ test('turns off a site the person had turned on', async ({ context, popupUrl }) 
   await popup.goto(popupUrl);
 
   await expect(popup.getByRole('status')).toContainText('ativado por você');
-  await popup.getByRole('button', { name: 'Desativar neste site' }).click();
+  await popup.getByRole('button', { name: 'Tirar o acesso a este site' }).click();
 
   await expect(popup.getByRole('status')).toContainText('não ativado');
   await expect(popup.locator('.thumb-tab')).toBeHidden();
@@ -266,7 +266,7 @@ test.describe('a site whose video plays in a player of another address', () => {
     await expect(popup.locator('.thumb-tab')).toHaveText('C');
     await expect(popup.locator('.entry-link:visible')).toHaveText([
       'Desligar a legenda dupla',
-      'Desativar neste site',
+      'Tirar o acesso a este site',
     ]);
     await popup.getByRole('button', { name: 'Ativar também no player' }).click();
 
@@ -305,7 +305,7 @@ test.describe('a site whose video plays in a player of another address', () => {
   test('turns off the site and its player together', async ({ context, popupUrl }) => {
     const popup = await openPopup(context, popupUrl, { granted: [SITE, PLAYER] });
     await expect(popup.getByRole('button', { name: 'Escolher a legenda na tela' })).toBeVisible();
-    await popup.getByRole('button', { name: 'Desativar neste site' }).click();
+    await popup.getByRole('button', { name: 'Tirar o acesso a este site' }).click();
 
     await expect(popup.getByRole('status')).toContainText('não ativado');
     expect(await permissionCalls(popup)).toEqual([`remove ${SITE},${PLAYER}`]);
@@ -356,7 +356,7 @@ test.describe('a site where the extension ran into a problem', () => {
       'A legenda dupla parou por um erro. O vídeo continua normal.',
     );
     await expect(popup.locator('.thumb-tab')).toBeHidden();
-    await expect(popup.locator('.entry-link:visible')).toHaveText(['Desativar neste site']);
+    await expect(popup.locator('.entry-link:visible')).toHaveText(['Tirar o acesso a este site']);
     await popup.getByRole('button', { name: 'Recarregar a página' }).click();
 
     await expect(popup.locator('html')).toHaveAttribute('data-closed', 'true');
@@ -473,7 +473,7 @@ test.describe('turning the caption off on a site', () => {
 
     await expect(popup.getByRole('status')).toContainText('desligada por você');
     await expect(popup.getByRole('button', { name: 'Ligar a legenda dupla' })).toBeVisible();
-    await expect(popup.locator('.entry-link:visible')).toHaveText(['Desativar neste site']);
+    await expect(popup.locator('.entry-link:visible')).toHaveText(['Tirar o acesso a este site']);
   });
 
   test('says so and offers a retry when Chrome cannot keep the choice', async ({

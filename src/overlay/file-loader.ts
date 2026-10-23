@@ -156,7 +156,11 @@ export class FileLoader {
     this.actions.hidden = true;
     const name = this.element('span', 'file-name');
     name.textContent = shortFileName(file.name);
-    this.definition.replaceChildren('Lendo ', name, '. Ajuste o atraso na faixa de estudo.');
+    this.definition.replaceChildren(
+      'Lendo ',
+      name,
+      '. Use Atraso − + junto da legenda para acertar o tempo.',
+    );
     this.onDone();
     this.closeTimer = setTimeout(() => {
       this.root.remove();

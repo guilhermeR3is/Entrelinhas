@@ -355,7 +355,7 @@ test.describe('loading a subtitle file', () => {
     await chooseFile(page, LESSON);
 
     await expect(page.locator(STRIP)).toContainText(
-      'Lendo lesson.srt. Ajuste o atraso na faixa de estudo.',
+      'Lendo lesson.srt. Use Atraso − + junto da legenda para acertar o tempo.',
     );
     await seek(page, 0.75);
     await expect(page.locator(ENGLISH)).toHaveText('This line comes from a file.');
