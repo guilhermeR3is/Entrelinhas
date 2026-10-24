@@ -11,7 +11,9 @@ import type { StudyPreferenceStore } from '../study/study-preferences';
 import type { CaptionStatus } from '../subtitles/caption-status';
 import type { Cue } from '../subtitles/cue';
 import type { PortugueseTranslation } from '../translation/portuguese-translation';
+import type { Highlight } from '../vocabulary/word-highlight';
 import type { PlayerAdapter } from './player-adapter';
+import { WordStudy } from './word-study';
 
 const NOTICE_DELAY_S = 2;
 const MISSING_AFTER_S = 10;
@@ -64,6 +66,13 @@ export class SubtitleSession {
       },
     );
     this.overlay.setKeys(preferences.current.keys);
+    new WordStudy(
+      this.overlay,
+      () => adapter.video(),
+      translation,
+      container.ownerDocument,
+      this.listeners.signal,
+    );
     this.overlay.setCaptionDelay(adapter.shiftDelay ? (adapter.delayMs ?? 0) : null);
     this.guarded(() => {
       adapter.start({
@@ -98,6 +107,12 @@ export class SubtitleSession {
 
   setKeys(keys: StudyKeys): void {
     this.overlay.setKeys(keys);
+  }
+
+  setHighlight(highlight: Highlight): void {
+    this.guarded(() => {
+      this.overlay.setHighlight(highlight);
+    }, undefined);
   }
 
   handleCommand(command: StudyCommand): boolean {

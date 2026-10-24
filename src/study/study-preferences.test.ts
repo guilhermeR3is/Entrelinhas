@@ -132,4 +132,37 @@ describe('StudyPreferenceStore', () => {
       expect(onKeys).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe('highlightLevel', () => {
+    it('marks words past the 2,000 most common by default and brings back the chosen level', async () => {
+      expect((await StudyPreferenceStore.load(storage)).current.highlightLevel).toBe(2000);
+      await storage.set({ highlightLevel: 5000 });
+      expect((await StudyPreferenceStore.load(storage)).current.highlightLevel).toBe(5000);
+      await storage.set({ highlightLevel: 'off' });
+      expect((await StudyPreferenceStore.load(storage)).current.highlightLevel).toBe('off');
+    });
+
+    it('goes back to the default when the stored level is not one of the offered ones', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      await storage.set({ highlightLevel: 3000 });
+      expect((await StudyPreferenceStore.load(storage)).current.highlightLevel).toBe(2000);
+    });
+
+    it('follows the level changed in the vocabulary page until it is told to stop', async () => {
+      const store = await StudyPreferenceStore.load(storage);
+      const onLevel = vi.fn();
+      const following = new AbortController();
+      store.followHighlightLevel(onLevel, following.signal);
+
+      await storage.set({ highlightLevel: 'off' });
+      await storage.set({ keys: { blur: { key: 'q', shift: false } } });
+      await storage.remove('highlightLevel');
+      expect(onLevel.mock.calls).toEqual([['off'], [2000]]);
+
+      following.abort();
+      await storage.set({ highlightLevel: 1000 });
+      expect(onLevel).toHaveBeenCalledTimes(2);
+      expect(store.current.highlightLevel).toBe(2000);
+    });
+  });
 });

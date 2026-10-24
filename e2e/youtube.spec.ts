@@ -67,11 +67,12 @@ test('shows each word of an automatic English track only when it is said', async
   const said = () =>
     page.evaluate((overlay) => {
       const english = document.querySelector(overlay)?.shadowRoot?.querySelector('.english');
-      return Array.from(english?.childNodes ?? [])
-        .filter((node) => node.nodeName === '#text')
-        .map((node) => node.textContent)
-        .join('');
+      const copy = english?.cloneNode(true);
+      if (!(copy instanceof Element)) return '';
+      for (const unspoken of copy.querySelectorAll('.unspoken')) unspoken.remove();
+      return copy.textContent;
     }, OVERLAY);
+  const unspoken = page.locator(`${OVERLAY} .unspoken`);
   const playUntil = (seconds: number) =>
     page.evaluate(async (time) => {
       const video = document.querySelector('video');
@@ -85,12 +86,14 @@ test('shows each word of an automatic English track only when it is said', async
 
   await playUntil(1);
   await expect.poll(said).toBe("Then that's fine.");
-  await expect(page.locator(`${OVERLAY} .unspoken`)).toHaveText(' I abstain.');
-  await expect(page.locator(`${OVERLAY} .unspoken`)).toHaveCSS('visibility', 'hidden');
+  expect((await unspoken.allTextContents()).join('')).toBe(' I abstain.');
+  expect(
+    await unspoken.evaluateAll((parts) => parts.map((part) => getComputedStyle(part).visibility)),
+  ).toEqual(['hidden', 'hidden', 'hidden', 'hidden', 'hidden']);
 
   await playUntil(4.5);
   await expect.poll(said).toBe("Then that's fine. I abstain.");
-  await expect(page.locator(`${OVERLAY} .unspoken`)).toHaveCount(0);
+  await expect(unspoken).toHaveCount(0);
 });
 
 test('follows the video while it plays', async ({ page }) => {

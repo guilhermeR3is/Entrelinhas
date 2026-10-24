@@ -41,14 +41,23 @@ async function dialogueLayout(page: Page, lines: string): Promise<DialogueLayout
       if (!root || !subtitle) throw new Error('No subtitle on screen');
       const shown = Array.from(root.querySelectorAll(selector));
       const dashes = shown.flatMap((line) => {
-        const text = line.firstChild;
-        if (!(text instanceof Text)) throw new Error('A line without text');
-        return [0, text.data.indexOf('\n') + 1].map((offset) => {
-          const range = document.createRange();
-          range.setStart(text, offset);
-          range.setEnd(text, offset + 1);
-          return range.getBoundingClientRect().left;
-        });
+        const lefts: number[] = [];
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+        let lineStart = true;
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const text = node as Text;
+          for (let offset = 0; offset < text.data.length; offset += 1) {
+            const character = text.data.charAt(offset);
+            if (lineStart && '-–—'.includes(character)) {
+              const range = document.createRange();
+              range.setStart(text, offset);
+              range.setEnd(text, offset + 1);
+              lefts.push(range.getBoundingClientRect().left);
+            }
+            lineStart = character === '\n';
+          }
+        }
+        return lefts;
       });
       const textRects = shown.flatMap((line) => {
         const range = document.createRange();

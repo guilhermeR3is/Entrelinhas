@@ -1,0 +1,253 @@
+@import '../../sheet.css';
+
+.loading {
+  margin: var(--space-4) 0 0;
+  color: var(--note);
+}
+
+.review {
+  margin-top: var(--space-5);
+}
+
+.entry-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-2);
+}
+
+.headword {
+  margin: 0;
+  font-size: var(--text-headword);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.word-class {
+  color: var(--note);
+  font-style: italic;
+}
+
+.sentence,
+.definition {
+  margin: var(--space-1) 0 0;
+  text-wrap: pretty;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.sentence strong {
+  font-weight: 700;
+}
+
+.source {
+  margin: var(--space-1) 0 0;
+  color: var(--note);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+
+.answer {
+  margin-top: var(--space-3);
+}
+
+.meaning {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.sentence-meaning {
+  margin: var(--space-1) 0 0;
+  color: var(--note);
+  text-wrap: pretty;
+  white-space: pre-line;
+}
+
+.sentence-meaning:empty,
+.review-problem:empty,
+.highlight-problem:empty,
+.saved-status:empty {
+  display: none;
+}
+
+.review-problem,
+.highlight-problem,
+.saved-status {
+  margin: var(--space-2) 0 0;
+  text-wrap: pretty;
+}
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.retry {
+  margin-top: var(--space-4);
+}
+
+.highlight,
+.saved {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--rule);
+}
+
+.section-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.section-intro {
+  margin: var(--space-1) 0 0;
+  text-wrap: pretty;
+}
+
+.levels {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.level {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-2);
+  padding-block: var(--space-2);
+  border-top: 1px solid var(--rule);
+  cursor: pointer;
+}
+
+.level:last-of-type {
+  border-bottom: 1px solid var(--rule);
+}
+
+.levels:disabled .level {
+  cursor: progress;
+}
+
+.level input {
+  margin: 0;
+  accent-color: var(--accent);
+  translate: 0 0.125em;
+}
+
+.level input:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.level-name {
+  font-weight: 600;
+}
+
+.level-note {
+  color: var(--note);
+}
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.letter {
+  margin: var(--space-4) 0 0;
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--rule);
+  color: var(--note);
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+
+.words {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.saved-word {
+  display: grid;
+  grid-template-areas: 'word meaning due delete';
+  grid-template-columns: fit-content(40%) minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  column-gap: var(--space-3);
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--rule);
+}
+
+.saved-headword {
+  grid-area: word;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.saved-meaning {
+  grid-area: meaning;
+  overflow-wrap: anywhere;
+}
+
+.saved-due {
+  grid-area: due;
+  color: var(--note);
+  font-size: var(--text-small);
+  white-space: nowrap;
+}
+
+.delete {
+  grid-area: delete;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.link,
+.delete {
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-small);
+  text-decoration: underline;
+  text-decoration-color: var(--note);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+  transition: text-decoration-color 120ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .link:hover,
+  .delete:hover {
+    text-decoration-color: var(--ink);
+  }
+}
+
+.link:focus-visible,
+.delete:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.delete:disabled {
+  color: var(--note);
+  cursor: progress;
+}
+
+@media (max-width: 30rem) {
+  .saved-word {
+    grid-template-areas:
+      'word due delete'
+      'meaning meaning meaning';
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+}

@@ -5,13 +5,15 @@ import { DEFAULT_KEYS, listenForStudyKeys } from '../study/study-keys';
 import { StudyPreferenceStore } from '../study/study-preferences';
 import { PortugueseTranslation } from '../translation/portuguese-translation';
 import { findTranslatorApi, type TranslatorApi } from '../translation/translator-api';
+import { WordHighlight } from '../vocabulary/word-highlight';
 import type { SubtitleSession } from './subtitle-session';
 
-type ShownSession = Pick<SubtitleSession, 'render' | 'handleCommand' | 'setKeys'>;
+type ShownSession = Pick<SubtitleSession, 'render' | 'handleCommand' | 'setKeys' | 'setHighlight'>;
 
 export interface StudyPage {
   translation: PortugueseTranslation;
   preferences: Promise<StudyPreferenceStore>;
+  highlight: WordHighlight;
 }
 
 export function pageTranslatorApi(page: Window): TranslatorApi | null {
@@ -25,6 +27,9 @@ export function prepareStudy(
   shownSession: () => ShownSession | undefined,
 ): StudyPage {
   let keys = DEFAULT_KEYS;
+  const highlight = new WordHighlight((current) => {
+    shownSession()?.setHighlight(current);
+  });
   const translation = new PortugueseTranslation(() => shownSession()?.render());
   void translation.prepare(translatorApi, page, context.signal);
   listenForStudyKeys(
@@ -39,7 +44,11 @@ export function prepareStudy(
       keys = chosen;
       shownSession()?.setKeys(chosen);
     }, context.signal);
+    highlight.follow(store.current.highlightLevel);
+    store.followHighlightLevel((level) => {
+      highlight.follow(level);
+    }, context.signal);
     return store;
   });
-  return { translation, preferences };
+  return { translation, preferences, highlight };
 }

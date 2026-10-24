@@ -1,0 +1,61 @@
+@import './theme.css';
+
+html {
+  background: var(--paper);
+  scrollbar-color: var(--note) var(--paper);
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--text-body);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sheet {
+  max-width: 36rem;
+  margin-inline: auto;
+}
+
+.running-head {
+  padding: var(--space-3) var(--space-5) var(--space-2);
+  border-bottom: 1px solid var(--rule);
+  color: var(--note);
+  font-size: var(--text-small);
+}
+
+.page {
+  padding: var(--space-5);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-headword);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.intro {
+  margin: var(--space-1) 0 0;
+  text-wrap: pretty;
+}
+
+.announcer,
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 30rem) {
+  .page {
+    padding: var(--space-4);
+  }
+}

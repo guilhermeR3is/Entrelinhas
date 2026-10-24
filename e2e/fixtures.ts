@@ -123,7 +123,12 @@ export async function turnSitesOff(context: BrowserContext, hosts: string[]): Pr
   );
 }
 
-export const test = base.extend<{ context: BrowserContext; popupUrl: string; optionsUrl: string }>({
+export const test = base.extend<{
+  context: BrowserContext;
+  popupUrl: string;
+  optionsUrl: string;
+  vocabularyUrl: string;
+}>({
   context: async ({}, use) => {
     const context = await chromium.launchPersistentContext('', {
       channel: 'chromium',
@@ -137,6 +142,9 @@ export const test = base.extend<{ context: BrowserContext; popupUrl: string; opt
   },
   optionsUrl: async ({}, use) => {
     await use(`chrome-extension://${unpackedExtensionId(extensionPath)}/options.html`);
+  },
+  vocabularyUrl: async ({}, use) => {
+    await use(`chrome-extension://${unpackedExtensionId(extensionPath)}/vocabulary.html`);
   },
 });
 

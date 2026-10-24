@@ -7,7 +7,12 @@ import { prepareStudy } from './study-page';
 const CHOSEN_KEYS: StudyKeys = { ...DEFAULT_KEYS, slower: { key: 'q', shift: false } };
 
 function fakeSession() {
-  return { render: vi.fn(), handleCommand: vi.fn(() => true), setKeys: vi.fn() };
+  return {
+    render: vi.fn(),
+    handleCommand: vi.fn(() => true),
+    setKeys: vi.fn(),
+    setHighlight: vi.fn(),
+  };
 }
 
 describe('prepareStudy', () => {
@@ -74,5 +79,30 @@ describe('prepareStudy', () => {
       expect(session?.render).toHaveBeenCalled();
     });
     expect(translation.pageStatus()).toBe('unsupported');
+  });
+
+  it('hands the word highlight to the session and follows the level chosen later', async () => {
+    fakeBrowser.runtime.onMessage.addListener((_message, _sender, sendResponse) => {
+      sendResponse({ words: 'the\nyou\n' });
+      return true;
+    });
+    session = fakeSession();
+    const { preferences, highlight } = prepare();
+    await preferences;
+
+    await vi.waitFor(() => {
+      expect(session?.setHighlight).toHaveBeenLastCalledWith({
+        ranks: new Map([
+          ['the', 1],
+          ['you', 2],
+        ]),
+        level: 2000,
+      });
+    });
+    await fakeBrowser.storage.local.set({ highlightLevel: 'off' });
+    expect(session.setHighlight).toHaveBeenLastCalledWith({
+      ranks: highlight.current.ranks,
+      level: null,
+    });
   });
 });

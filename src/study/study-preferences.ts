@@ -2,6 +2,7 @@ import type { browser } from 'wxt/browser';
 import * as z from 'zod/mini';
 import { logger } from '../logger';
 import { DEFAULT_PLACEMENT, type BoxPlacement } from '../overlay/box-placement';
+import { HIGHLIGHT_LEVELS, type HighlightSetting } from '../vocabulary/word-ranks';
 import { keysProblem } from './key-rules';
 import { MAX_SPEED, MIN_SPEED } from './playback-speed';
 import { DEFAULT_KEYS, STUDY_COMMANDS, type StudyKeys } from './study-keys';
@@ -15,6 +16,7 @@ export interface StudyChoices {
 export interface StudyPreferences extends StudyChoices {
   placement: BoxPlacement;
   keys: StudyKeys;
+  highlightLevel: HighlightSetting;
 }
 
 export type PreferenceStorage = Pick<typeof browser.storage.local, 'get' | 'set' | 'onChanged'>;
@@ -25,6 +27,7 @@ export const DEFAULT_PREFERENCES: StudyPreferences = {
   blurred: false,
   placement: DEFAULT_PLACEMENT,
   keys: DEFAULT_KEYS,
+  highlightLevel: 2000,
 };
 
 const fraction = () => z.number().check(z.gte(0), z.lte(1));
@@ -34,6 +37,7 @@ const SCHEMAS = {
   autoPause: z.boolean(),
   blurred: z.boolean(),
   placement: z.object({ x: fraction(), y: fraction(), edge: z.enum(['top', 'bottom']) }),
+  highlightLevel: z.union([z.literal(HIGHLIGHT_LEVELS), z.literal('off')]),
 };
 
 const KEYS_SCHEMA = z.partialRecord(
@@ -64,6 +68,7 @@ export class StudyPreferenceStore {
       blurred: read('blurred', stored),
       placement: read('placement', stored),
       keys: readKeys(stored.keys),
+      highlightLevel: read('highlightLevel', stored),
     });
   }
 
@@ -77,22 +82,37 @@ export class StudyPreferenceStore {
   }
 
   followKeys(onKeys: (keys: StudyKeys) => void, signal: AbortSignal): void {
-    const listener = (changes: Record<string, { newValue?: unknown }>): void => {
-      if (!('keys' in changes)) return;
-      const keys = readKeys(changes.keys.newValue);
-      this.preferences = { ...this.preferences, keys };
-      onKeys(keys);
-    };
-    this.storageArea.onChanged.addListener(listener);
-    signal.addEventListener('abort', () => {
-      this.storageArea.onChanged.removeListener(listener);
-    });
+    this.follow('keys', readKeys, onKeys, signal);
+  }
+
+  followHighlightLevel(onLevel: (level: HighlightSetting) => void, signal: AbortSignal): void {
+    const readLevel = (stored: unknown) =>
+      read('highlightLevel', stored == null ? {} : { highlightLevel: stored });
+    this.follow('highlightLevel', readLevel, onLevel, signal);
   }
 
   remember(change: Partial<StudyPreferences>): void {
     this.preferences = { ...this.preferences, ...change };
     this.storageArea.set(change).catch((error: unknown) => {
       logger.error('Could not save the study preferences', error);
+    });
+  }
+
+  private follow<Key extends 'keys' | 'highlightLevel'>(
+    key: Key,
+    readValue: (stored: unknown) => StudyPreferences[Key],
+    onValue: (value: StudyPreferences[Key]) => void,
+    signal: AbortSignal,
+  ): void {
+    const listener = (changes: Record<string, { newValue?: unknown } | undefined>): void => {
+      if (!(key in changes)) return;
+      const value = readValue(changes[key]?.newValue);
+      this.preferences = { ...this.preferences, [key]: value };
+      onValue(value);
+    };
+    this.storageArea.onChanged.addListener(listener);
+    signal.addEventListener('abort', () => {
+      this.storageArea.onChanged.removeListener(listener);
     });
   }
 }

@@ -77,6 +77,7 @@ export default defineContentScript({
           stoppedByError = true;
         },
       );
+      session.setHighlight(study.highlight.current);
     };
     const stopSession = () => {
       if (fileAdapter) fileDelayMs = fileAdapter.delayMs;

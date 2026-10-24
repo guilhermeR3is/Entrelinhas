@@ -12,6 +12,9 @@ import {
   type Size,
 } from './box-placement';
 import { type StripCommand, StudyStrip } from './study-strip';
+import { WordCard, type WordCardHandlers } from './word-card';
+import { type Highlight, NO_HIGHLIGHT } from '../vocabulary/word-highlight';
+import { isUncommon, type WordToken, wordsIn } from '../vocabulary/word-ranks';
 
 export type OverlayNotice = 'captions-off' | 'other-language' | 'unreadable';
 export type TranslationState =
@@ -20,6 +23,17 @@ export type TranslationState =
   | { kind: 'unsupported' }
   | { kind: 'download-failed' }
   | { kind: 'translation-failed' };
+
+export interface WordPick {
+  token: WordToken;
+  sentence: string;
+  portuguese: string | null;
+  uncommon: boolean | null;
+}
+
+export interface WordHandlers extends WordCardHandlers {
+  onPick: (pick: WordPick) => void;
+}
 
 const NOTICE_MS = 5000;
 const NOTICE_FADE_MS = 160;
@@ -80,6 +94,12 @@ export class SubtitleOverlay {
   private readonly portuguese: HTMLElement;
   private readonly status: HTMLElement;
   private readonly announcer: HTMLElement;
+  readonly wordCard: WordCard;
+  private wordHandlers: WordHandlers | null = null;
+  private highlight: Highlight = NO_HIGHLIGHT;
+  private shownWords: WordToken[] = [];
+  private pickedWord: number | null = null;
+  private shownTimeMs = Infinity;
   private shownEnglish = NO_CUES;
   private shownPortuguese = NO_CUES;
   private shownSpoken = '';
@@ -115,7 +135,11 @@ export class SubtitleOverlay {
     this.subtitle = this.element('div', 'subtitle', this.english, this.portuguese);
     this.subtitle.hidden = true;
     this.strip = new StudyStrip(this.document, onCommand);
-    this.box = this.element('div', 'box', this.strip.element, this.subtitle);
+    this.wordCard = new WordCard(this.document, {
+      onSave: () => this.wordHandlers?.onSave(),
+      onClose: () => this.wordHandlers?.onClose(),
+    });
+    this.box = this.element('div', 'box', this.wordCard.element, this.strip.element, this.subtitle);
     this.box.hidden = true;
     for (const type of ISOLATED_EVENTS) {
       this.box.addEventListener(type, (event) => {
@@ -138,6 +162,9 @@ export class SubtitleOverlay {
     this.frame = this.element('div', 'frame', this.box, this.status, this.announcer);
     container.append(this.frame);
     this.listenForMoves(this.strip.handle);
+    this.english.addEventListener('click', (event) => {
+      this.pickWord((event.target as Element).closest<HTMLElement>('.word'));
+    });
     this.resizeObserver = new ResizeObserver((entries) => {
       if (entries.some((entry) => entry.target === this.frame)) this.fitLine();
       this.place();
@@ -165,6 +192,7 @@ export class SubtitleOverlay {
     const sameCues = english === this.shownEnglish && portuguese === this.shownPortuguese;
     if (sameCues && spoken === this.shownSpoken) return;
     this.shownSpoken = spoken;
+    this.shownTimeMs = timeMs;
     this.renderEnglish(english, timeMs);
     if (sameCues) return;
     this.shownEnglish = english;
@@ -175,6 +203,31 @@ export class SubtitleOverlay {
     this.renderBox();
     this.fitLine();
     if (!this.subtitle.hidden) this.hideNotice();
+  }
+
+  setHighlight(highlight: Highlight): void {
+    this.highlight = highlight;
+    this.renderEnglish(this.shownEnglish, this.shownTimeMs);
+  }
+
+  listenForWords(handlers: WordHandlers): void {
+    this.wordHandlers = handlers;
+  }
+
+  openWordCard(word: string, wordClass: string | null): void {
+    this.wordCard.show(word, wordClass);
+    this.renderBox();
+  }
+
+  closeWordCard(): void {
+    this.wordCard.hide();
+    this.pickedWord = null;
+    this.english.querySelector('.picked')?.classList.remove('picked');
+    this.renderBox();
+  }
+
+  holds(event: Event): boolean {
+    return event.composedPath().includes(this.box);
   }
 
   setSpeed(speed: number): void {
@@ -271,7 +324,7 @@ export class SubtitleOverlay {
       (this.studyAvailable && (this.stripPinned || this.stripFocused || flashing));
     this.strip.element.classList.toggle('shown', stripShown);
     this.box.classList.toggle('study', this.studyAvailable);
-    this.box.hidden = this.subtitle.hidden && !stripShown;
+    this.box.hidden = this.subtitle.hidden && !stripShown && !this.wordCard.shown;
   }
 
   private listenForMoves(handle: HTMLButtonElement): void {
@@ -419,18 +472,67 @@ export class SubtitleOverlay {
   }
 
   private renderEnglish(english: readonly Cue[], timeMs: number): void {
+    const words: WordToken[] = [];
     const lines = english.flatMap((cue, index) => {
-      const said = spokenLength(cue, timeMs);
-      const line: Node[] = [this.document.createTextNode(cue.text.slice(0, said))];
-      if (said < cue.text.length) {
-        line.push(
-          this.element('span', 'unspoken', this.document.createTextNode(cue.text.slice(said))),
-        );
-      }
+      const line = this.wordNodes(cue.text, spokenLength(cue, timeMs), words);
       return index === 0 ? line : [this.document.createTextNode('\n'), ...line];
     });
+    this.shownWords = words;
     this.english.replaceChildren(...lines);
     this.english.classList.toggle('dialogue', isDialogue(textOf(english)));
+  }
+
+  private wordNodes(text: string, said: number, words: WordToken[]): Node[] {
+    const { ranks, level } = this.highlight;
+    const nodes: Node[] = [];
+    let position = 0;
+    for (const token of wordsIn(text)) {
+      nodes.push(...this.spokenNodes(text, position, token.start, said));
+      const word = this.element(
+        'span',
+        'word',
+        ...this.spokenNodes(text, token.start, token.end, said),
+      );
+      word.dataset.index = String(words.length);
+      word.classList.toggle(
+        'uncommon',
+        !!ranks && level !== null && isUncommon(ranks, token, level),
+      );
+      word.classList.toggle('picked', words.length === this.pickedWord);
+      words.push(token);
+      nodes.push(word);
+      position = token.end;
+    }
+    nodes.push(...this.spokenNodes(text, position, text.length, said));
+    return nodes;
+  }
+
+  private spokenNodes(text: string, start: number, end: number, said: number): Node[] {
+    const split = Math.min(Math.max(said, start), end);
+    const nodes: Node[] = [];
+    if (split > start) nodes.push(this.document.createTextNode(text.slice(start, split)));
+    if (end > split) {
+      nodes.push(
+        this.element('span', 'unspoken', this.document.createTextNode(text.slice(split, end))),
+      );
+    }
+    return nodes;
+  }
+
+  private pickWord(word: HTMLElement | null): void {
+    const index = Number(word?.dataset.index);
+    const token = this.shownWords[index];
+    if (!word || !token || !this.wordHandlers) return;
+    this.english.querySelector('.picked')?.classList.remove('picked');
+    word.classList.add('picked');
+    this.pickedWord = index;
+    const { ranks, level } = this.highlight;
+    this.wordHandlers.onPick({
+      token,
+      sentence: textOf(this.shownEnglish),
+      portuguese: this.shownPortuguese.length > 0 ? textOf(this.shownPortuguese) : null,
+      uncommon: ranks && level !== null ? isUncommon(ranks, token, level) : null,
+    });
   }
 
   private element(tag: string, className: string, ...children: Node[]): HTMLElement {

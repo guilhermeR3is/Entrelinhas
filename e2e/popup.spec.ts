@@ -231,6 +231,22 @@ test('opens the shortcuts page from the link at the foot of the popup', async ({
   expect(new URL(options.url()).pathname).toBe('/options.html');
 });
 
+test('opens the vocabulary page from the link at the foot of the popup', async ({
+  context,
+  popupUrl,
+}) => {
+  const popup = await context.newPage();
+  await popup.goto(popupUrl);
+  await expect(popup.getByRole('heading', { name: 'Esta página' })).toBeVisible();
+
+  const [vocabulary] = await Promise.all([
+    context.waitForEvent('page'),
+    popup.getByRole('link', { name: 'Vocabulário' }).click(),
+  ]);
+  await expect(vocabulary.getByRole('heading', { level: 1 })).toHaveText('Vocabulário');
+  expect(new URL(vocabulary.url()).pathname).toBe('/vocabulary.html');
+});
+
 test.describe('a site whose video plays in a player of another address', () => {
   const SITE = 'https://www.cursos.com.br/*';
   const PLAYER = 'https://player.vimeo.com/*';

@@ -45,6 +45,7 @@ const action = element('.entry-action');
 const actionLinks = Array.from(document.querySelectorAll<HTMLElement>('.entry-link'));
 const thumbTab = element('.thumb-tab');
 const shortcutsLink = element('.shortcuts-link');
+const vocabularyLink = element('.vocabulary-link');
 let current: CurrentTab = {
   state: { kind: 'error' },
   tabId: undefined,
@@ -343,6 +344,16 @@ function runAction(chosen: string | undefined): void {
   if (chosen === 'load') void handOverToTab(LOAD_FILE);
 }
 
+async function openVocabulary(): Promise<void> {
+  try {
+    await browser.tabs.create({ url: browser.runtime.getURL('/vocabulary.html') });
+    window.close();
+  } catch (error) {
+    logger.error('Could not open the vocabulary page', error);
+    window.open(vocabularyLink.getAttribute('href') ?? '', '_blank');
+  }
+}
+
 async function openShortcuts(): Promise<void> {
   try {
     await browser.runtime.openOptionsPage();
@@ -356,6 +367,10 @@ async function openShortcuts(): Promise<void> {
 shortcutsLink.addEventListener('click', (event) => {
   event.preventDefault();
   void openShortcuts();
+});
+vocabularyLink.addEventListener('click', (event) => {
+  event.preventDefault();
+  void openVocabulary();
 });
 for (const control of [action, ...actionLinks]) {
   control.addEventListener('click', () => {

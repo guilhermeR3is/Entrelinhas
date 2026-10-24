@@ -1,23 +1,20 @@
+import {
+  completion,
+  openExtensionDatabase,
+  settle,
+  TRANSLATIONS_STORE as STORE,
+} from '../extension-database';
+
 export type LanguagePair = { sourceLanguage: string; targetLanguage: string };
 export type Translation = { text: string; translation: string };
 
 type StoredTranslation = LanguagePair & Translation & { savedAt: number };
 
-const DATABASE_NAME = 'projeto-bilingue';
-const DATABASE_VERSION = 1;
-const STORE = 'translations';
-
 export class TranslationCache {
   private constructor(private readonly database: IDBDatabase) {}
 
   static async open(factory: IDBFactory = indexedDB): Promise<TranslationCache> {
-    const request = factory.open(DATABASE_NAME, DATABASE_VERSION);
-    request.onupgradeneeded = () => {
-      request.result.createObjectStore(STORE, {
-        keyPath: ['sourceLanguage', 'targetLanguage', 'text'],
-      });
-    };
-    return new TranslationCache(await settle(request));
+    return new TranslationCache(await openExtensionDatabase(factory));
   }
 
   async find(pair: LanguagePair, texts: readonly string[]): Promise<(string | null)[]> {
@@ -50,29 +47,4 @@ export class TranslationCache {
   close(): void {
     this.database.close();
   }
-}
-
-function settle<T>(request: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => {
-      resolve(request.result);
-    };
-    request.onerror = () => {
-      reject(request.error ?? new Error('IndexedDB request failed'));
-    };
-  });
-}
-
-function completion(transaction: IDBTransaction): Promise<void> {
-  return new Promise((resolve, reject) => {
-    transaction.oncomplete = () => {
-      resolve();
-    };
-    transaction.onerror = () => {
-      reject(transaction.error ?? new Error('IndexedDB transaction failed'));
-    };
-    transaction.onabort = () => {
-      reject(transaction.error ?? new Error('IndexedDB transaction aborted'));
-    };
-  });
 }

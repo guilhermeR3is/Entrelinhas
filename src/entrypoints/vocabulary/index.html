@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Vocabulário · Projeto Bilíngue</title>
+  </head>
+  <body>
+    <div class="sheet">
+      <header class="running-head">Projeto Bilíngue</header>
+      <main class="page">
+        <h1 class="title">Vocabulário</h1>
+        <p class="intro">As palavras que você salvou clicando na legenda.</p>
+        <p class="loading" hidden>Abrindo as suas palavras…</p>
+
+        <section class="review" aria-label="Revisão de hoje" hidden>
+          <article class="entry review-entry" hidden>
+            <div class="entry-line">
+              <h2 class="headword review-word" lang="en"></h2>
+              <span class="word-class">revisão de hoje</span>
+            </div>
+            <p class="sentence" lang="en"></p>
+            <p class="source"></p>
+            <div class="answer" hidden>
+              <p class="meaning" lang="pt-BR"></p>
+              <p class="sentence-meaning" lang="pt-BR"></p>
+            </div>
+            <p class="review-problem" role="status"></p>
+            <div class="review-actions">
+              <button class="reveal ink-button" type="button">Mostrar tradução</button>
+              <button class="forgot ink-button" type="button" hidden>Não lembrei</button>
+              <button class="remembered ink-button" type="button" hidden></button>
+            </div>
+          </article>
+          <article class="entry status-entry" role="status" hidden>
+            <div class="entry-line">
+              <h2 class="headword status-headword"></h2>
+              <span class="word-class status-class"></span>
+            </div>
+            <p class="definition status-definition"></p>
+            <button class="retry ink-button" type="button" hidden>Tentar de novo</button>
+          </article>
+        </section>
+
+        <section class="highlight" aria-labelledby="highlight-title">
+          <h2 class="section-title" id="highlight-title">Destaque na legenda</h2>
+          <p class="section-intro" id="highlight-intro">
+            Marca na legenda em inglês as palavras menos comuns, para você saber quais valem a pena
+            aprender.
+          </p>
+          <fieldset class="levels" aria-describedby="highlight-intro" disabled>
+            <legend class="visually-hidden">Destaque na legenda</legend>
+            <label class="level">
+              <input type="radio" name="level" value="off" />
+              <span class="level-name">Desligado</span>
+            </label>
+            <label class="level">
+              <input type="radio" name="level" value="1000" />
+              <span class="level-name">Estou começando</span>
+              <span class="level-note">fora das 1.000 mais comuns</span>
+            </label>
+            <label class="level">
+              <input type="radio" name="level" value="2000" />
+              <span class="level-name">Entendo frases simples</span>
+              <span class="level-note">fora das 2.000 mais comuns</span>
+            </label>
+            <label class="level">
+              <input type="radio" name="level" value="5000" />
+              <span class="level-name">Acompanho conversas</span>
+              <span class="level-note">fora das 5.000 mais comuns</span>
+            </label>
+            <label class="level">
+              <input type="radio" name="level" value="10000" />
+              <span class="level-name">Leio quase tudo</span>
+              <span class="level-note">fora das 10.000 mais comuns</span>
+            </label>
+          </fieldset>
+          <p class="highlight-problem" role="status"></p>
+        </section>
+
+        <section class="saved" aria-labelledby="saved-title" hidden>
+          <div class="section-head">
+            <h2 class="section-title" id="saved-title">Palavras salvas</h2>
+            <button class="export ink-button" type="button">Exportar para o Anki</button>
+          </div>
+          <p class="saved-status" role="status"></p>
+          <div class="word-list"></div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

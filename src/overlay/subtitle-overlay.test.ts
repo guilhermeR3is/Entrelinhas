@@ -2,7 +2,8 @@ import { JSDOM } from 'jsdom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_KEYS } from '../study/study-keys';
 import type { Cue } from '../subtitles/cue';
-import { SubtitleOverlay } from './subtitle-overlay';
+import { parseWordRanks } from '../vocabulary/word-ranks';
+import { SubtitleOverlay, type WordHandlers } from './subtitle-overlay';
 
 function cue(text: string, lang = 'en'): Cue {
   return { id: 0, startMs: 0, endMs: 1000, text, lang };
@@ -117,16 +118,22 @@ describe('SubtitleOverlay', () => {
     };
 
     function said(): string {
-      return Array.from(find('.english').childNodes)
-        .filter((node) => node.nodeName === '#text')
-        .map((node) => node.textContent)
-        .join('');
+      const english = find('.english').cloneNode(true) as Element;
+      for (const unspoken of english.querySelectorAll('.unspoken')) unspoken.remove();
+      return english.textContent;
+    }
+
+    function unspoken(): string {
+      return Array.from(
+        container.querySelectorAll('.english .unspoken'),
+        (node) => node.textContent,
+      ).join('');
     }
 
     it('shows only the words already said and keeps room for the others', () => {
       overlay.showCues([spoken], [], 250);
       expect(said()).toBe('Then that');
-      expect(find('.english .unspoken').textContent).toBe(' is fine.');
+      expect(unspoken()).toBe(' is fine.');
       expect(find('.english').textContent).toBe('Then that is fine.');
     });
 
@@ -685,6 +692,121 @@ describe('SubtitleOverlay', () => {
       expect(handle.getAttribute('aria-label')).toBe('Mover a legenda');
       const hint = container.querySelector(`#${handle.getAttribute('aria-describedby') ?? ''}`);
       expect(hint?.textContent).toContain('setas');
+    });
+  });
+
+  describe('words', () => {
+    const RANKS = parseWordRanks('the\nyou\nwhere\nare\ngoing\n');
+
+    function words(selector = '.word'): string[] {
+      return Array.from(
+        container.querySelectorAll(`.english ${selector}`),
+        (word) => word.textContent,
+      );
+    }
+
+    function listen(): WordHandlers {
+      const handlers = { onPick: vi.fn(), onSave: vi.fn(), onClose: vi.fn() };
+      overlay.listenForWords(handlers);
+      return handlers;
+    }
+
+    it('turns each word into its own piece of the line, keeping the text as it was', () => {
+      overlay.showCues([cue("Where're you going,\nDouglas?")]);
+      expect(words()).toEqual(["Where're", 'you', 'going', 'Douglas']);
+      expect(find('.english').textContent).toBe("Where're you going,\nDouglas?");
+    });
+
+    it('marks the words past the chosen level and redraws when the level changes', () => {
+      overlay.showCues([cue('Where are you going, stranger? Ask Douglas.')]);
+      expect(words('.uncommon')).toEqual([]);
+
+      overlay.setHighlight({ ranks: RANKS, level: 1000 });
+      expect(words('.uncommon')).toEqual(['stranger', 'Ask']);
+
+      overlay.setHighlight({ ranks: RANKS, level: null });
+      expect(words('.uncommon')).toEqual([]);
+    });
+
+    it('tells which word was picked, with the line it came from and its Portuguese', () => {
+      const handlers = listen();
+      overlay.setHighlight({ ranks: RANKS, level: 1000 });
+      overlay.showCues(
+        [cue('Where are you going, stranger?')],
+        [cue('Aonde vai, estranho?', 'pt')],
+      );
+
+      find('.english .word:nth-of-type(5)').click();
+
+      expect(handlers.onPick).toHaveBeenCalledWith({
+        token: expect.objectContaining({ text: 'stranger', key: 'stranger' }) as unknown,
+        sentence: 'Where are you going, stranger?',
+        portuguese: 'Aonde vai, estranho?',
+        uncommon: true,
+      });
+      expect(words('.picked')).toEqual(['stranger']);
+    });
+
+    it('does nothing when the click falls between words or nobody listens', () => {
+      overlay.showCues([cue('Where are you going?')]);
+      find('.english .word').click();
+      expect(words('.picked')).toEqual([]);
+
+      const handlers = listen();
+      find('.english').click();
+      expect(handlers.onPick).not.toHaveBeenCalled();
+    });
+
+    it('says nothing about how common a word is while the highlight is off', () => {
+      const handlers = listen();
+      overlay.showCues([cue('stranger')]);
+      find('.english .word').click();
+      expect(handlers.onPick).toHaveBeenCalledWith(expect.objectContaining({ uncommon: null }));
+    });
+
+    it('opens the word card inside the box and closes it, unmarking the word', () => {
+      const handlers = listen();
+      overlay.showCues([cue('Where are you going?')]);
+      find('.english .word').click();
+
+      overlay.openWordCard('Where', 'comum');
+      expect(find('.word-card').hidden).toBe(false);
+      expect(find('.box').firstElementChild).toBe(find('.word-card'));
+      expect(find('.word-card .headword').textContent).toBe('Where');
+      expect(find('.word-card .word-class').textContent).toBe('comum');
+      find('.word-card .word-button:last-child').click();
+      expect(handlers.onClose).toHaveBeenCalledTimes(1);
+
+      overlay.closeWordCard();
+      expect(find('.word-card').hidden).toBe(true);
+      expect(words('.picked')).toEqual([]);
+    });
+
+    it('keeps the box on screen for the card even between lines', () => {
+      overlay.openWordCard('stranger', null);
+      overlay.showCues([]);
+      expect(find('.box').hidden).toBe(false);
+      expect(find('.word-card .word-class').hidden).toBe(true);
+      overlay.closeWordCard();
+      expect(find('.box').hidden).toBe(true);
+    });
+
+    it('knows whether an event happened inside its box', () => {
+      overlay.showCues([cue('Hello')]);
+      const view = container.ownerDocument.defaultView;
+      if (!view) throw new Error('Missing window');
+      let inside: boolean | undefined;
+      container.addEventListener(
+        'click',
+        (event) => {
+          inside = overlay.holds(event);
+        },
+        true,
+      );
+      find('.english').dispatchEvent(new view.MouseEvent('click', { bubbles: true }));
+      expect(inside).toBe(true);
+      container.dispatchEvent(new view.MouseEvent('click', { bubbles: true }));
+      expect(inside).toBe(false);
     });
   });
 });

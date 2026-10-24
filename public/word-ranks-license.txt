@@ -1,0 +1,20 @@
+word-ranks.txt
+
+The 25,000 most frequent English words, in order, taken from wordfreq 3.1.1
+by Robyn Speer (https://github.com/rspeer/wordfreq, DOI 10.5281/zenodo.7199437)
+with scripts/word-ranks.py. Numbers, symbols and emoji were removed.
+
+This list is a derived work of the wordfreq data and is distributed under the
+Creative Commons Attribution-ShareAlike 4.0 International license:
+https://creativecommons.org/licenses/by-sa/4.0/
+
+The wordfreq data includes:
+
+- SUBTLEX word lists by Marc Brysbaert et al., freely available at
+  http://crr.ugent.be/programs-data/subtitle-frequencies
+- OPUS OpenSubtitles 2018 (http://opus.nlpl.eu/OpenSubtitles.php), with data
+  from the OpenSubtitles project (http://www.opensubtitles.org/)
+- Google Books Ngram Viewer (http://books.google.com/ngrams)
+- The Leeds Internet Corpus (http://corpus.leeds.ac.uk/list.html)
+- Wikipedia (http://www.wikipedia.org)
+- ParaCrawl (https://paracrawl.eu)

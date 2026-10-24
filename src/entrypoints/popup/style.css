@@ -70,12 +70,15 @@ body {
 }
 
 .page-foot {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-4);
   padding: var(--space-2) var(--space-5) var(--space-3);
   border-top: 1px solid var(--rule);
   font-size: var(--text-small);
 }
 
-.shortcuts-link {
+.foot-link {
   color: var(--ink);
   text-decoration-color: var(--note);
   text-decoration-thickness: 1px;
@@ -84,12 +87,12 @@ body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .shortcuts-link:hover {
+  .foot-link:hover {
     text-decoration-color: var(--ink);
   }
 }
 
-.shortcuts-link:focus-visible {
+.foot-link:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
   border-radius: 4px;

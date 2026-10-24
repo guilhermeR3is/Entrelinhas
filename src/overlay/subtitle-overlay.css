@@ -198,6 +198,60 @@
   visibility: hidden;
 }
 
+.word {
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 120ms ease-out;
+}
+
+.word.uncommon {
+  text-decoration: underline dotted var(--note);
+  text-decoration-thickness: max(1px, 0.08em);
+  text-underline-offset: 0.2em;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .word:hover {
+    background: var(--rule);
+  }
+}
+
+.word.picked {
+  color: var(--accent);
+}
+
+.word-card {
+  max-width: min(24em, 90cqw);
+  overflow-wrap: anywhere;
+  padding: 0.375em 0.5em 0.5em;
+  font-size: max(1em, 3.2cqh);
+  border-block-end: 1px solid var(--rule);
+}
+
+.box.top-edge .word-card {
+  border-block-start: 1px solid var(--rule);
+  border-block-end: 0;
+}
+
+.meaning,
+.word-problem {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+.meaning.pending,
+.word-problem {
+  font-style: italic;
+  color: var(--note);
+}
+
+.word-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25em 0.5em;
+  margin: 0.375em 0 0;
+}
+
 .portuguese {
   margin: 0.125em 0 0;
   font-size: 0.8em;
@@ -295,7 +349,8 @@
   margin: 0.25em 0 0;
 }
 
-.file-actions button {
+.file-actions button,
+.word-actions button {
   min-height: 1.75em;
   padding: 0.375em 0.5em;
   border: 1px solid var(--note);
@@ -312,18 +367,30 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .file-actions button:not(:disabled):hover {
+  .file-actions button:not(:disabled):hover,
+  .word-actions button:not([aria-disabled='true']):hover {
     background: var(--rule);
   }
 }
 
-.file-actions button:not(:disabled):active {
+.file-actions button:not(:disabled):active,
+.word-actions button:not([aria-disabled='true']):active {
   scale: 0.97;
 }
 
-.file-actions button:focus-visible {
+.file-actions button:focus-visible,
+.word-actions button:focus-visible {
   outline: 2px solid var(--paper);
   outline-offset: 2px;
+}
+
+.word-actions button[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+.word-actions button[aria-busy] {
+  color: var(--note);
+  cursor: progress;
 }
 
 .file-actions button:disabled {
@@ -357,7 +424,8 @@
   }
 
   .strip button,
-  .file-actions button {
+  .file-actions button,
+  .word-actions button {
     transition: background-color 120ms ease-out;
   }
 
@@ -366,7 +434,8 @@
   }
 
   .strip button:not([aria-disabled='true']):active,
-  .file-actions button:not(:disabled):active {
+  .file-actions button:not(:disabled):active,
+  .word-actions button:not([aria-disabled='true']):active {
     scale: none;
   }
 }
