@@ -1,5 +1,4 @@
-import '@fontsource-variable/atkinson-hyperlegible-next/wght.css';
-import '@fontsource-variable/atkinson-hyperlegible-next/wght-italic.css';
+import '../../fonts.css';
 import './style.css';
 import { browser } from 'wxt/browser';
 import { logger } from '../../logger';

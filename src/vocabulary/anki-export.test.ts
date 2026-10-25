@@ -26,7 +26,7 @@ describe('ankiCsv', () => {
     expect(ankiCsv([]).split('\n').slice(0, 5)).toEqual([
       '#separator:Comma',
       '#html:true',
-      '#tags:projeto-bilingue',
+      '#tags:entrelinhas',
       '#guid column:1',
       '#columns:GUID,Frente,Verso',
     ]);

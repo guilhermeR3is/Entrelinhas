@@ -1,12 +1,27 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { chromium, test as base, type BrowserContext, type Page } from '@playwright/test';
 
-const extensionPath = path.resolve('.output/chrome-mv3-e2e');
+export const extensionPath = path.resolve('.output/chrome-mv3-e2e');
 
-function unpackedExtensionId(directory: string): string {
-  const hash = createHash('sha256').update(directory).digest('hex').slice(0, 32);
+export function extensionIdFromKey(directory: string): string {
+  const manifest = JSON.parse(readFileSync(path.join(directory, 'manifest.json'), 'utf8')) as {
+    key: string;
+  };
+  const publicKey = Buffer.from(manifest.key, 'base64');
+  const hash = createHash('sha256').update(publicKey).digest('hex').slice(0, 32);
   return hash.replace(/[0-9a-f]/g, (digit) => String.fromCharCode(97 + Number.parseInt(digit, 16)));
+}
+
+export async function launchWithExtension(
+  directory: string,
+  profile = '',
+): Promise<BrowserContext> {
+  return chromium.launchPersistentContext(profile, {
+    channel: 'chromium',
+    args: [`--disable-extensions-except=${directory}`, `--load-extension=${directory}`],
+  });
 }
 
 export interface ActiveTabStub {
@@ -130,21 +145,18 @@ export const test = base.extend<{
   vocabularyUrl: string;
 }>({
   context: async ({}, use) => {
-    const context = await chromium.launchPersistentContext('', {
-      channel: 'chromium',
-      args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
-    });
+    const context = await launchWithExtension(extensionPath);
     await use(context);
     await context.close();
   },
   popupUrl: async ({}, use) => {
-    await use(`chrome-extension://${unpackedExtensionId(extensionPath)}/popup.html`);
+    await use(`chrome-extension://${extensionIdFromKey(extensionPath)}/popup.html`);
   },
   optionsUrl: async ({}, use) => {
-    await use(`chrome-extension://${unpackedExtensionId(extensionPath)}/options.html`);
+    await use(`chrome-extension://${extensionIdFromKey(extensionPath)}/options.html`);
   },
   vocabularyUrl: async ({}, use) => {
-    await use(`chrome-extension://${unpackedExtensionId(extensionPath)}/vocabulary.html`);
+    await use(`chrome-extension://${extensionIdFromKey(extensionPath)}/vocabulary.html`);
   },
 });
 

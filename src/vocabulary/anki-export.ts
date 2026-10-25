@@ -2,12 +2,12 @@ import { formatVideoTime, isWebLink } from './video-moment';
 import type { SavedWord } from './vocabulary-store';
 import { splitAroundWord } from './word-ranks';
 
-export const ANKI_FILE_NAME = 'vocabulario-projeto-bilingue.csv';
+export const ANKI_FILE_NAME = 'vocabulario-entrelinhas.csv';
 
 const HEADER = [
   '#separator:Comma',
   '#html:true',
-  '#tags:projeto-bilingue',
+  '#tags:entrelinhas',
   '#guid column:1',
   '#columns:GUID,Frente,Verso',
 ];

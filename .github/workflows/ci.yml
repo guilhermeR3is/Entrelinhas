@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
 
 permissions:
@@ -44,7 +45,39 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          path: .output/projeto-bilingue-*-chrome.zip
+          path: .output/entrelinhas-*-chrome.zip
           archive: false
           include-hidden-files: true
           if-no-files-found: error
+
+  release:
+    needs: check
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::A tag $GITHUB_REF_NAME não bate com a versão $version do package.json"
+            exit 1
+          fi
+          echo "zip=entrelinhas-$version-chrome.zip" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ steps.version.outputs.zip }}
+
+      - run: >
+          gh release create "$GITHUB_REF_NAME" "$ZIP"
+          --title "Entrelinhas $GITHUB_REF_NAME"
+          --notes "Baixe o arquivo $ZIP abaixo e siga o passo a passo em
+          https://github.com/$GITHUB_REPOSITORY#como-instalar"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ZIP: ${{ steps.version.outputs.zip }}

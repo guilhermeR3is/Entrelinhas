@@ -121,12 +121,12 @@ test('deletes a word and exports the others in the format Anki imports', async (
     page.waitForEvent('download'),
     page.getByRole('button', { name: 'Exportar para o Anki' }).click(),
   ]);
-  expect(download.suggestedFilename()).toBe('vocabulario-projeto-bilingue.csv');
+  expect(download.suggestedFilename()).toBe('vocabulario-entrelinhas.csv');
   const csv = await readFile(await download.path(), 'utf8');
   expect(csv.split('\n').slice(0, 6)).toEqual([
     '#separator:Comma',
     '#html:true',
-    '#tags:projeto-bilingue',
+    '#tags:entrelinhas',
     '#guid column:1',
     '#columns:GUID,Frente,Verso',
     expect.stringMatching(/^"projeto-bilingue:zeitgeist","<b>Zeitgeist<\/b><br><b>Zeitgeist<\/b>/),

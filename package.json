@@ -1,8 +1,8 @@
 {
-  "name": "projeto-bilingue",
+  "name": "entrelinhas",
   "description": "Legenda em inglês e português ao mesmo tempo, com controles para estudar inglês.",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "engines": {
     "node": ">=22"
