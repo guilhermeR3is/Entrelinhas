@@ -72,6 +72,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: ${{ steps.version.outputs.zip }}
+          skip-decompress: true
 
       - run: >
           gh release create "$GITHUB_REF_NAME" "$ZIP"
